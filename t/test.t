@@ -76,8 +76,9 @@ $div_obj->brute_force_diversity();
 
 
 # $div_obj->initialize("test_data.far");
-my $d  = $div_obj->diversity();
-my $s  = $div_obj->sigma();
+# my $d  = $div_obj->diversity();
+# my $s  = $div_obj->sigma();
+my ($d,$s) = $div_obj->epd();
 
 #my $v = $div_obj->variance();
 

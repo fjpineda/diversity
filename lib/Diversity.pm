@@ -159,7 +159,7 @@ sub initialize {
 	}
 
 	_estimate_probabilities();
-	_calculate_diversity();
+# 	_calculate_diversity();
 	
 	return(1);
 }
@@ -242,7 +242,6 @@ sub _estimate_probabilities {
 
 
 sub _calculate_diversity {
-
 
 	# calc mismatches
 	for(my $i=0; $i<$_W; $i++) {
@@ -339,6 +338,14 @@ sub brute_force_diversity {
 # ----------------------------------
 # getters
 # ----------------------------------
+
+sub epd {
+	my $self=shift;
+	
+	_calculate_diversity();
+	
+	return ($_D, $_sigmaD);
+}
 
 sub diversity {
 	my $self=shift;

@@ -1,15 +1,6 @@
 Diversity
 
-The README is used to introduce the module and provide instructions on
-how to install the module, any machine dependencies it may have (for
-example C compilers and installed libraries) and any other information
-that should be provided before the module is installed.
-
-A README file is required for CPAN modules since CPAN extracts the README
-file from a module distribution so that people browsing the archive
-can use it to get an idea of the module's uses. It is usually a good idea
-to provide version information here so that people can decide whether
-fixes for the module are worth downloading.
+Perl module for performing fast O(N) expected pairwise difference (epd) calculations. Input is a gapped alignment file in fasta format. Evaluation of probabilities is O(N) where N is the number of reads. Evaluation of diversity is O(1). Evaluation of error in the diversity is also O(1). 
 
 
 INSTALLATION
@@ -23,12 +14,13 @@ To install this module, run the following commands:
 
 SUPPORT AND DOCUMENTATION
 
-After installing, you can find documentation for this module with the
+
+Eventually documentation will be organized as follows: After installing, will be able to find documentation for this module with the
 perldoc command.
 
     perldoc Diversity
 
-You can also look for information at:
+You will also be able to look for information at:
 
     RT, CPAN's request tracker (report bugs here)
         http://rt.cpan.org/NoAuth/Bugs.html?Dist=Diversity

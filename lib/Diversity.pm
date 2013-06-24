@@ -309,12 +309,12 @@ sub _calculate_diversity {
 # brute-force diversity
 # ----------------------------------
 
-sub brute_force_diversity {
+sub apd {
 
 	my $m_sum = 0;
 	my $c_sum = 0;
 	for(my $i=0; $i<$_K; $i++) { 
-		warn("$i\n");
+		# warn("$i\n");
 		my @seq_i = split //,$_read_buffer[$i];
 		for(my $j=$i; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
@@ -329,9 +329,12 @@ sub brute_force_diversity {
 			}
 		}
 	}
-	warn("m_sum = $m_sum\n");
-	warn("c_sum = $c_sum\n");
-	warn("m_sum/c_sum = ".$m_sum/$c_sum."\n");
+	
+	my $apd = $m_sum/$c_sum;
+	# warn("m_sum = $m_sum\n");
+	# warn("c_sum = $c_sum\n");
+	# warn("m_sum/c_sum = $apd\n");
+	return($apd);
 
 }
 

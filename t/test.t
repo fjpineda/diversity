@@ -71,22 +71,25 @@ my $div_obj = Diversity->new(INDELS => 1);
 # $div_obj->initialize("fastatmp.far");
 $div_obj->initialize("test_data_small.far");
 
-$div_obj->brute_force_diversity(); 
 # die("debug exit");
 
 
 # $div_obj->initialize("test_data.far");
 # my $d  = $div_obj->diversity();
 # my $s  = $div_obj->sigma();
-my ($d,$s) = $div_obj->epd();
+my ($epd,$sigma_epd) = $div_obj->epd();
+my $apd = $div_obj->apd(); 
 
 #my $v = $div_obj->variance();
 
-print("diversity = $d +/- $s\n");
+print("epd = $epd +/- $sigma_epd\n");
+print("apd = $apd\n");
+my $diff = ($epd-$apd)/$sigma_epd;
+warn("(epd-apd) = $diff sigma\n");
 
-ok($d eq '0.0105620784550071',"expected diversity = 0.0105620784550071, got diversity=$d");
+ok($diff < 1.0,"epd less than 1 sigma different from apd");
 
-my $c = $div_obj->consensus();
-warn("$c\n");
+#my $c = $div_obj->consensus();
+#warn("$c\n");
 
 exit;

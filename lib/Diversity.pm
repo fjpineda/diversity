@@ -62,12 +62,6 @@ sub new
 	@_residues = ('A','T','C','G');
 	@_alphabet = sort (@_residues, $_gap, $_null);
 
-	if($_options{INDELS} ==0) {
-		_do_subs();
-	}
-	else {
-		_do_indels();
-	}
 	
 	return bless{};
 }
@@ -159,7 +153,6 @@ sub initialize {
 	}
 
 	_estimate_probabilities();
-# 	_calculate_diversity();
 	
 	return(1);
 }
@@ -306,10 +299,18 @@ sub _calculate_diversity {
 }
 
 # ----------------------------------
-# brute-force diversity
+# brute-force diversity (robust average pairwise difference)
 # ----------------------------------
 
 sub apd {
+
+
+	if($_options{INDELS} ==0) {
+		_do_subs();
+	}
+	else {
+		_do_indels();
+	}
 
 	my $m_sum = 0;
 	my $c_sum = 0;
@@ -335,7 +336,6 @@ sub apd {
 	# warn("c_sum = $c_sum\n");
 	# warn("m_sum/c_sum = $apd\n");
 	return($apd);
-
 }
 
 # ----------------------------------
@@ -345,6 +345,14 @@ sub apd {
 sub epd {
 	my $self=shift;
 	
+
+	if($_options{INDELS} ==0) {
+		_do_subs();
+	}
+	else {
+		_do_indels();
+	}
+
 	_calculate_diversity();
 	
 	return ($_D, $_sigmaD);

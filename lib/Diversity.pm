@@ -62,6 +62,12 @@ sub new
 	@_residues = ('A','T','C','G');
 	@_alphabet = sort (@_residues, $_gap, $_null);
 
+	if($_options{INDELS} ==0) {
+		_do_subs();
+	}
+	else {
+		_do_indels();
+	}
 	
 	return bless{};
 }
@@ -227,9 +233,6 @@ sub _estimate_probabilities {
 			}
 		}
 	}
-	
-
-	
 	return 1;
 }
 
@@ -304,14 +307,6 @@ sub _calculate_diversity {
 
 sub apd {
 
-
-	if($_options{INDELS} ==0) {
-		_do_subs();
-	}
-	else {
-		_do_indels();
-	}
-
 	my $m_sum = 0;
 	my $c_sum = 0;
 	for(my $i=0; $i<$_K; $i++) { 
@@ -345,14 +340,6 @@ sub apd {
 sub epd {
 	my $self=shift;
 	
-
-	if($_options{INDELS} ==0) {
-		_do_subs();
-	}
-	else {
-		_do_indels();
-	}
-
 	_calculate_diversity();
 	
 	return ($_D, $_sigmaD);

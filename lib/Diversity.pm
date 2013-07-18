@@ -41,6 +41,9 @@ my @_var;   	# variances of the symbol probabilities
 my @_cov;   	# covariance of the symbol probabilities
 my @_valid_positions;  	# array positions in the alginment that can be included in
 				# the diversity calculation
+my $_gap_threshold;	# if proportion of gap symbols exceeds _gap_threshold, the position is no included in diversity 
+my $_null_threshold;	# if proportion of null symbols exceeds _gap_threshold, the position is no included in diversity
+
 
 # ----------------------------------
 # new -- initialize symbols and matrices
@@ -74,6 +77,10 @@ sub new
 	else {
 		_do_indels();
 	}
+	
+	$_gap_threshold = 1;
+	$_null_threshold = 1;
+
 	
 	return bless{};
 }
@@ -197,6 +204,7 @@ sub initialize {
 	}
 
 	_estimate_probabilities();
+
 	
 	return(1);
 }
@@ -227,7 +235,7 @@ sub _standardize_the_read {
 		
 	# 3) finally replace everything that is not a residue or a gap with the null symbol
 	# unless ($syn) {$seq_string = uc $seq_string} 
-	warn("commented out uc()");
+	# warn("commented out uc()");
 	$seq_string =~ s/[^$_residues_and_gap]/$_null/ig;
 
 	return $seq_string;
@@ -237,13 +245,8 @@ sub _estimate_probabilities {
 
 	my @frequency =();
 
-	# by default includes all positions in diversity calculation
-	my $max_index = $_W-1;
-	@_valid_positions = 0..$max_index; 
-
 	# zero out the accumulators
-	foreach my $i (@_valid_positions) {
-	# for(my $i=0; $i<$_W; $i++) {
+	for(my $i=0; $i<$_W; $i++) {
 		foreach my $symbol ((@_alphabet)) {
 			$frequency[$i]{$symbol} = 0;
 			$_p[$i]{$symbol}  = 0;
@@ -253,16 +256,14 @@ sub _estimate_probabilities {
 	# accumulate symbol counts	
 	for(my $k=0; $k<$_K; $k++) { 
 		my @symbol_sequence = split //,$_read_buffer[$k];
-		foreach my $i (@_valid_positions) {
-		# for(my $i=0; $i<$_W; $i++) {
+		for(my $i=0; $i<$_W; $i++) {
 			my $symbol = $symbol_sequence[$i];			
 			$frequency[$i]{$symbol}++;
 		}
 	}
 		
 	# calc probabilities, variances and covariances
-		foreach my $i (@_valid_positions) {
-		# for(my $i=0; $i<$_W; $i++) {
+	for(my $i=0; $i<$_W; $i++) {
 		foreach my $beta (@_alphabet) {
 			my $p = $frequency[$i]{$beta}/$_K;
 			$_p[$i]{$beta} = $p;
@@ -282,8 +283,16 @@ sub _estimate_probabilities {
 
 sub _calculate_diversity {
 
+	# build array of alignment postions that are below the null threshold and below the gap threshold
+	# these are the positions in the alignment that will be used to calculate the diversity
+	@_valid_positions=();
+	for(my $i=0; $i< $_W; $i++) {
+		if(  ($_p[$i]{$_gap} <= $_gap_threshold) & ($_p[$i]{$_null} <= $_null_threshold)) {
+			push @_valid_positions, $i;
+		}
+	}
+	
 	# calc mismatches
-	# for(my $i=0; $i<$_W; $i++) {
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_m[$i]{$alpha} = 0;
@@ -294,7 +303,6 @@ sub _calculate_diversity {
 	}
 	
 	$_M=0;
-	# for(my $i=0; $i<$_W; $i++) {
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
@@ -302,7 +310,6 @@ sub _calculate_diversity {
 	}
 	
 	# calc expected pairwise coverage
-	# for(my $i=0; $i<$_W; $i++) {
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_z[$i]{$alpha} = 0;
@@ -313,7 +320,6 @@ sub _calculate_diversity {
 	}
 	
 	$_Z=0;
-	# for(my $i=0; $i<$_W; $i++) {
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
@@ -362,7 +368,6 @@ sub apd {
 		my @seq_i = split //,$_read_buffer[$i];
 		for(my $j=$i; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
-	# for(my $i=0; $i<$_W; $i++) {
 			foreach my $w (@_valid_positions) {
 				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};
 				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]};
@@ -375,8 +380,18 @@ sub apd {
 }
 
 # ----------------------------------
-# getters
+# setters and getters
 # ----------------------------------
+
+sub set_gap_threshold {
+	my $self = shift;
+	$_gap_threshold = shift;
+}
+
+sub set_null_threshold {
+	my $self = shift;
+	$_null_threshold = shift;
+}
 
 sub epd {
 	my $self=shift;

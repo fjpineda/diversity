@@ -22,8 +22,8 @@ my @_nonnull_symbols=();# all symbols except null
 # diversity and variance calculations
 # ----------------------------------------
 
-my %_m_mat=();	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
-my %_c_mat=();	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
+my %_m_mat;	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
+my %_c_mat;	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
 
 my $_K;           # number of reads in the alignment file
 my $_W;           # width (number of columns) of the alignment file
@@ -33,11 +33,13 @@ my $_D;     	# diversity
 my $_varD;		# variance of the diversity
 my $_sigmaD;	# standard deviation of D
 
-my @_p=();		# symbol probabilities $_p[$i]{$symbol}
-my @_m=();
-my @_z=();
-my @_var=();   	# variances of the symbol probabilities
-my @_cov=();   	# covariance of the symbol probabilities
+my @_p;		# symbol probabilities $_p[$i]{$symbol}
+my @_m;
+my @_z;
+my @_var;   	# variances of the symbol probabilities
+my @_cov;   	# covariance of the symbol probabilities
+my @_valid_positions;  	# array positions in the alginment that can be included in
+				# the diversity calculation
 
 # ----------------------------------
 # new -- initialize symbols and matrices
@@ -122,6 +124,37 @@ sub _do_indels {
 
 }
 
+sub _do_synonymous {
+
+	%_m_mat = (   # mismatch matrix
+		'A'   =>{'A'=>0,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'T'   =>{'A'=>1,'T'=>0,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'C'   =>{'A'=>1,'T'=>1,'C'=>0,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'G'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'a'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		't'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'c'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'g'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		$_gap =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		$_null=>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0}
+	);
+	
+	%_c_mat = (   # pairwise coverage matrix
+		'A'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'T'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'C'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'G'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'a'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		't'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'c'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		'g'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		$_gap =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
+		$_null=>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0}
+	);
+
+}
+
+
 
 # ----------------------------------
 # initialize new diversity calculation
@@ -149,8 +182,10 @@ sub initialize {
 	@_z   =();
 	@_var =();
 	@_cov =();
-
+	
 	# load the read buffer with standardized reads
+	# and calculate the width ($_W) and number of rows ($_K) in the alignment file
+	
 	@_read_buffer = ();	
 	while(my $seqio_obj = $seqio_obj->next_seq) {
 		my $seq_string = _standardize_the_read($seqio_obj);
@@ -202,8 +237,13 @@ sub _estimate_probabilities {
 
 	my @frequency =();
 
+	# by default includes all positions in diversity calculation
+	my $max_index = $_W-1;
+	@_valid_positions = 0..$max_index; 
+
 	# zero out the accumulators
-	for(my $i=0; $i<$_W; $i++) {
+	foreach my $i (@_valid_positions) {
+	# for(my $i=0; $i<$_W; $i++) {
 		foreach my $symbol ((@_alphabet)) {
 			$frequency[$i]{$symbol} = 0;
 			$_p[$i]{$symbol}  = 0;
@@ -213,14 +253,16 @@ sub _estimate_probabilities {
 	# accumulate symbol counts	
 	for(my $k=0; $k<$_K; $k++) { 
 		my @symbol_sequence = split //,$_read_buffer[$k];
-		for(my $i=0; $i<$_W; $i++) {
+		foreach my $i (@_valid_positions) {
+		# for(my $i=0; $i<$_W; $i++) {
 			my $symbol = $symbol_sequence[$i];			
 			$frequency[$i]{$symbol}++;
 		}
 	}
 		
 	# calc probabilities, variances and covariances
-	for(my $i=0; $i<$_W; $i++) {
+		foreach my $i (@_valid_positions) {
+		# for(my $i=0; $i<$_W; $i++) {
 		foreach my $beta (@_alphabet) {
 			my $p = $frequency[$i]{$beta}/$_K;
 			$_p[$i]{$beta} = $p;
@@ -233,6 +275,7 @@ sub _estimate_probabilities {
 			}
 		}
 	}
+	
 	return 1;
 }
 
@@ -240,7 +283,8 @@ sub _estimate_probabilities {
 sub _calculate_diversity {
 
 	# calc mismatches
-	for(my $i=0; $i<$_W; $i++) {
+	# for(my $i=0; $i<$_W; $i++) {
+	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_m[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
@@ -250,14 +294,16 @@ sub _calculate_diversity {
 	}
 	
 	$_M=0;
-	for(my $i=0; $i<$_W; $i++) {
+	# for(my $i=0; $i<$_W; $i++) {
+	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
 		}
 	}
 	
 	# calc expected pairwise coverage
-	for(my $i=0; $i<$_W; $i++) {
+	# for(my $i=0; $i<$_W; $i++) {
+	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_z[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
@@ -267,7 +313,8 @@ sub _calculate_diversity {
 	}
 	
 	$_Z=0;
-	for(my $i=0; $i<$_W; $i++) {
+	# for(my $i=0; $i<$_W; $i++) {
+	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
 		}
@@ -281,7 +328,8 @@ sub _calculate_diversity {
 	# ------------------
 	
 	$_varD = 0;	
-	for(my $i=0; $i<$_W; $i++) {
+	# for(my $i=0; $i<$_W; $i++) {
+	foreach my $i (@_valid_positions) {
 		my %Dp  = ();
 		my %Dpc = ();
 		foreach my $alpha (@_alphabet) {
@@ -314,22 +362,15 @@ sub apd {
 		my @seq_i = split //,$_read_buffer[$i];
 		for(my $j=$i; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
-			for(my $w=0; $w<$_W; $w++) {
+	# for(my $i=0; $i<$_W; $i++) {
+			foreach my $w (@_valid_positions) {
 				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};
 				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]};
-				#printf("\t%3s\t%3s\t%3d\n",
-				#	$seq_i[$w], 
-				#	$seq_j[$w],
-				#	$_m_mat{$seq_i[$w]}{$seq_j[$w]}
-				#	);
 			}
 		}
 	}
 	
 	my $apd = $m_sum/$c_sum;
-	# warn("m_sum = $m_sum\n");
-	# warn("c_sum = $c_sum\n");
-	# warn("m_sum/c_sum = $apd\n");
 	return($apd);
 }
 

@@ -203,11 +203,6 @@ sub initialize {
 
 
 sub _standardize_the_read {
-	# standardize one read 
-	# *** warning this is for DNA alphabet only. It needs to be generalized ***
-	# 1. replace N's with null symbol
-	# 2. replace exterior gaps with the null symbol because exterior gaps are 
-	#    past the limits of the read, while interior gaps are actual gaps. 
 
 	my $seq_object = shift;
 	
@@ -216,21 +211,21 @@ sub _standardize_the_read {
 	
 	$_W = length($seq_string); # width of the alignment (should be the same for all reads in the file)
 
-	# 1) trim leading nonresidue symbols with null symbol
+	# 1) trim leading nonresidue symbols with null symbol (because could be masked or padded with gaps)
 	my ($leader) = ($seq_string =~ m/^([^$_residues]+)/);
 	if(defined($leader)) {
 		my $len     = length($leader);
 		$seq_string = ($_null x $len) . substr($seq_string, $len); 
 	}
 
-	# 2) trim trailing nonresidue symbols with null symbol
+	# 2) trim trailing nonresidue symbols with null symbol (because could be masked or padded with gaps)
 	my ($trailer) = ($seq_string =~ m/([^$_residues]+)$/);
 	if(defined($trailer)) {
 		my $len     = length($trailer);
 		$seq_string = substr($seq_string, 0, -$len) . ($_null x $len);
 	}
 		
-	# 3) replace everything that is not a residue or a gap with the null symbol
+	# 3) finally replace everything that is not a residue or a gap with the null symbol
 	# unless ($syn) {$seq_string = uc $seq_string} 
 	warn("commented out uc()");
 	$seq_string =~ s/[^$_residues_and_gap]/$_null/ig;

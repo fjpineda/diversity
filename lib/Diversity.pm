@@ -14,9 +14,10 @@ use Bio::SeqIO;
 
 my $_null;			# null symbol
 my $_gap;			# gap symbol
-my @_residues;		# residues
+my @_residues;		# residues array
+my $_residues;		# residues string
 my @_alphabet;		# alphabet
-my @_nonnull_symbols;# all symbols except null
+my $_residues_and_gap;   # all symbols except null
 
 # ----------------------------------------
 # diversity and variance calculations
@@ -62,6 +63,9 @@ sub new
 	$_null     = 'N';
 	$_gap      = '-';
 	@_residues = ('A','T','C','G');
+	$_residues = join '',@_residues;
+	$_residues_and_gap = $_residues.$_gap;
+
 	@_alphabet = sort (@_residues, $_gap, $_null);
 
 	if($_options{INDELS} ==0) {
@@ -212,23 +216,25 @@ sub _standardize_the_read {
 	
 	$_W = length($seq_string); # width of the alignment (should be the same for all reads in the file)
 
-	# 1) trim leading gaps (replace with null symbol)
-	my ($leading_gaps) = ($seq_string =~ m/^(-+)/);
-	if(defined($leading_gaps)) {
-		$leading_gaps =~ s/-/$_null/g;
-		$seq_string =~ s/^-+/$leading_gaps/;
+	# 1) trim leading nonresidue symbols with null symbol
+	my ($leader) = ($seq_string =~ m/^([^$_residues]+)/);
+	if(defined($leader)) {
+		my $len     = length($leader);
+		$seq_string = ($_null x $len) . substr($seq_string, $len); 
 	}
 
-	# 2) trim trailing gaps (replace with null symbol)
-	my ($trailing_gaps) = ($seq_string =~ m/(-+)$/);
-	if(defined($trailing_gaps)) {
-		$trailing_gaps =~ s/-/$_null/g;
-		$seq_string =~ s/-+$/$trailing_gaps/;
+	# 2) trim trailing nonresidue symbols with null symbol
+	my ($trailer) = ($seq_string =~ m/([^$_residues]+)$/);
+	if(defined($trailer)) {
+		my $len     = length($trailer);
+		$seq_string = substr($seq_string, 0, -$len) . ($_null x $len);
 	}
 		
-	# 3) replace everything that is not in @_nonnull_symbols with the null symbol
-	$seq_string =~ s/[^ATCG-]/$_null/g; 
-	
+	# 3) replace everything that is not a residue or a gap with the null symbol
+	# unless ($syn) {$seq_string = uc $seq_string} 
+	warn("commented out uc()");
+	$seq_string =~ s/[^$_residues_and_gap]/$_null/ig;
+
 	return $seq_string;
 }
 

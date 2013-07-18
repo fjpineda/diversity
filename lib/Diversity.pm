@@ -14,9 +14,9 @@ use Bio::SeqIO;
 
 my $_null;			# null symbol
 my $_gap;			# gap symbol
-my @_residues=();		# residues
-my @_alphabet=();		# alphabet
-my @_nonnull_symbols=();# all symbols except null
+my @_residues;		# residues
+my @_alphabet;		# alphabet
+my @_nonnull_symbols;# all symbols except null
 
 # ----------------------------------------
 # diversity and variance calculations
@@ -188,8 +188,7 @@ sub initialize {
 	
 	@_read_buffer = ();	
 	while(my $seqio_obj = $seqio_obj->next_seq) {
-		my $seq_string = _standardize_the_read($seqio_obj);
-		$_read_buffer[$_K] = $seq_string;
+		$_read_buffer[$_K] =  _standardize_the_read($seqio_obj);
 		$_K++;
 	}
 

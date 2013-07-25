@@ -237,12 +237,10 @@ sub _estimate_probabilities {
 
 	my @frequency =();
 
-	# zero out the accumulators
+	# initialize the accumulators
 	for(my $i=0; $i<$_W; $i++) {
-		foreach my $symbol ((@_alphabet)) {
-			$frequency[$i]{$symbol} = 0;
-			$_p[$i]{$symbol}  = 0;
-		}
+		$frequency[$i]=undef;
+		$_p[$i] = undef;
 	}
 	
 	# accumulate symbol counts	
@@ -255,7 +253,14 @@ sub _estimate_probabilities {
 			$symbols_count{$symbol}++;
 		}
 	}
+	
 	my @symbols = sort keys %symbols_count;
+	# replace undef so don't get uninitialzed error when calculating probabilities
+	for(my $i=0; $i<$_W; $i++) {
+		foreach my $symbol (@symbols) {
+			if(!defined($frequency[$i]{$symbol})) {$frequency[$i]{$symbol} = 0}
+		}
+	}
 		
 	# calc probabilities, variances and covariances
 	for(my $i=0; $i<$_W; $i++) {
@@ -271,7 +276,6 @@ sub _estimate_probabilities {
 			}
 		}
 	}
-	
 	return 1;
 }
 
@@ -286,7 +290,6 @@ sub _calculate_diversity {
 			push @_valid_positions, $i;
 		}
 	}
-	
 	
 	
 	# calc mismatches

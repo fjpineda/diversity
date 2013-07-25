@@ -72,10 +72,10 @@ sub new
 	@_alphabet = sort (@_residues, $_gap, $_null);
 
 	if($_options{INDELS} ==0) {
-		_do_subs();
+		_do_dna_subs();
 	}
 	else {
-		_do_indels();
+		_do_dna_indels();
 	}
 	
 	$_gap_threshold = 1;
@@ -89,7 +89,7 @@ sub new
 # ----------------------------------
 # initialize indicators
 # ----------------------------------
-sub _do_subs {
+sub _do_dna_subs {
 
 	warn("do_subs\n");
 	%_m_mat = (   # mismatch matrix
@@ -112,7 +112,7 @@ sub _do_subs {
 
 }
 
-sub _do_indels {
+sub _do_dna_indels {
 	warn("do_indels\n");
 
 	%_m_mat = (   # mismatch matrix
@@ -135,7 +135,7 @@ sub _do_indels {
 
 }
 
-sub _do_synonymous {
+sub _do_dna_synonymous {
 
 	%_m_mat = (   # mismatch matrix
 		'A'   =>{'A'=>0,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
@@ -234,7 +234,7 @@ sub _standardize_the_read {
 	}
 		
 	# 3) finally replace everything that is not a residue or a gap with the null symbol
-	# unless ($syn) {$seq_string = uc $seq_string} 
+	$seq_string = uc $seq_string;
 	# warn("commented out uc()");
 	$seq_string =~ s/[^$_residues_and_gap]/$_null/ig;
 

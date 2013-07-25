@@ -14,6 +14,7 @@ use Bio::SeqIO;
 
 my $_null;			# null symbol
 my $_gap;			# gap symbol
+my $_gap_null;		# gap and null symbols
 my @_residues;		# residues array
 my $_residues;		# residues string
 my @_alphabet;		# alphabet
@@ -22,6 +23,8 @@ my $_residues_and_gap;   # all symbols except null
 # ----------------------------------------
 # diversity and variance calculations
 # ----------------------------------------
+my $_diversity_type; # indels, substitutions only, synonymous, etc.
+my $_alphabet_type;  # 'dna' or 'aa' (amino acids)
 
 my %_m_mat;	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
 my %_c_mat;	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
@@ -54,30 +57,7 @@ my %_options=();
 sub new 
 { 
 	my $self = shift;
-	%_options = @_;
-	
-	my %defaults = (
-		INDELS => 0
-	);
-	foreach ('INDELS') {
-		if(! defined($_options{$_})) {$_options{$_}= $defaults{$_}};
-	}
 
-	$_null     = 'N';
-	$_gap      = '-';
-	@_residues = ('A','T','C','G');
-	$_residues = join '',@_residues;
-	$_residues_and_gap = $_residues.$_gap;
-
-	@_alphabet = sort (@_residues, $_gap, $_null);
-
-	if($_options{INDELS} ==0) {
-		_do_dna_subs();
-	}
-	else {
-		_do_dna_indels();
-	}
-	
 	$_gap_threshold = 1;
 	$_null_threshold = 1;
 
@@ -132,7 +112,6 @@ sub _do_dna_indels {
 		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
 	);
-
 }
 
 sub _do_dna_synonymous {
@@ -166,19 +145,32 @@ sub _do_dna_synonymous {
 }
 
 
-
 # ----------------------------------
 # initialize new diversity calculation
 # ----------------------------------
 my @_read_buffer; # holds preprocessed read strings
 
 sub initialize {
-	my ($self, $infilename) = @_;
+	my ($self, $infilename, $alphabet_type) = @_;
 
-	my $seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
+	my $seqio_obj;
+
+	if(($alphabet_type eq 'dna')) {
+		$_null     = 'N';
+		$_gap      = '-';
+		$_gap_null = $_gap.$_null;
+		
+		@_residues = ('A','T','C','G');
+
+		$_residues = join '',@_residues;
+		$_residues_and_gap = $_residues.$_gap;
+		@_alphabet = sort (@_residues, $_gap, $_null);
+		$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
 										-format=>  'fasta',
 										-alphabet=>'dna'
-										);
+							);
+	}
+
 	# reset variables
 	$_K     = 0;
 	$_W     = 0;
@@ -220,23 +212,23 @@ sub _standardize_the_read {
 	$_W = length($seq_string); # width of the alignment (should be the same for all reads in the file)
 
 	# 1) trim leading nonresidue symbols with null symbol (because could be masked or padded with gaps)
-	my ($leader) = ($seq_string =~ m/^([^$_residues]+)/);
+	my ($leader) = ($seq_string =~ m/^([$_gap_null]+)/);
 	if(defined($leader)) {
 		my $len     = length($leader);
 		$seq_string = ($_null x $len) . substr($seq_string, $len); 
 	}
 
 	# 2) trim trailing nonresidue symbols with null symbol (because could be masked or padded with gaps)
-	my ($trailer) = ($seq_string =~ m/([^$_residues]+)$/);
+	my ($trailer) = ($seq_string =~ m/([$_gap_null]+)$/);
 	if(defined($trailer)) {
 		my $len     = length($trailer);
 		$seq_string = substr($seq_string, 0, -$len) . ($_null x $len);
 	}
 		
 	# 3) finally replace everything that is not a residue or a gap with the null symbol
-	$seq_string = uc $seq_string;
+	# $seq_string = uc $seq_string;
 	# warn("commented out uc()");
-	$seq_string =~ s/[^$_residues_and_gap]/$_null/ig;
+	# $seq_string =~ s/[^$_residues_and_gap]/$_null/ig;
 
 	return $seq_string;
 }
@@ -291,6 +283,8 @@ sub _calculate_diversity {
 			push @_valid_positions, $i;
 		}
 	}
+	
+	
 	
 	# calc mismatches
 	foreach my $i (@_valid_positions) {
@@ -395,6 +389,23 @@ sub set_null_threshold {
 
 sub epd {
 	my $self=shift;
+	my %arguments = @_;
+	if(!defined($arguments{'type'})) {
+		_do_dna_subs();
+	}
+	elsif($arguments{'type'} eq 'indels') {
+		_do_dna_indels();
+	}
+	elsif($arguments{'type'} eq 'no_indels') {
+		_do_dna_subs();
+	}
+	elsif($arguments{'type'} eq 'synonymous') {
+		_do_dna_synonymous();
+	}
+
+	
+	
+	my $_diversity_mode = shift;
 	
 	_calculate_diversity();
 	

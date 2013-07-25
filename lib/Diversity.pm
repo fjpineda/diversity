@@ -246,21 +246,24 @@ sub _estimate_probabilities {
 	}
 	
 	# accumulate symbol counts	
+	my %symbols_count = ();
 	for(my $k=0; $k<$_K; $k++) { 
 		my @symbol_sequence = split //,$_read_buffer[$k];
 		for(my $i=0; $i<$_W; $i++) {
 			my $symbol = $symbol_sequence[$i];			
 			$frequency[$i]{$symbol}++;
+			$symbols_count{$symbol}++;
 		}
 	}
+	my @symbols = sort keys %symbols_count;
 		
 	# calc probabilities, variances and covariances
 	for(my $i=0; $i<$_W; $i++) {
-		foreach my $beta (@_alphabet) {
+		foreach my $beta (@symbols) {
 			my $p = $frequency[$i]{$beta}/$_K;
 			$_p[$i]{$beta} = $p;
 			$_var[$i]{$beta} = $p*(1-$p)/$_K;
-			foreach my $alpha (@_alphabet) {
+			foreach my $alpha (@symbols) {
 				if($alpha lt $beta) {
 					$_cov[$i]{$alpha}{$beta} = -$_p[$i]{$alpha}*$_p[$i]{$beta}/$_K;
 					$_cov[$i]{$beta}{$alpha} = $_cov[$i]{$alpha}{$beta};

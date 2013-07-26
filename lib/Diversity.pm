@@ -37,6 +37,7 @@ my $_D;     	# diversity
 my $_varD;		# variance of the diversity
 my $_sigmaD;	# standard deviation of D
 
+my @_freq;        # symbol frequencies in input file
 my @_p;		# symbol probabilities $_p[$i]{$symbol}
 my @_m;
 my @_z;
@@ -195,7 +196,7 @@ sub initialize {
 		$_K++;
 	}
 
-	_estimate_probabilities();
+	_accumulate_symbol_frequencies();
 
 	
 	return(1);
@@ -233,13 +234,13 @@ sub _standardize_the_read {
 	return $seq_string;
 }
 
-sub _estimate_probabilities {
+sub _accumulate_symbol_frequencies {
 
-	my @frequency =();
+	@_freq =();
 
 	# initialize the accumulators
 	for(my $i=0; $i<$_W; $i++) {
-		$frequency[$i]=undef;
+		$_freq[$i]=undef;
 		$_p[$i] = undef;
 	}
 	
@@ -249,7 +250,7 @@ sub _estimate_probabilities {
 		my @symbol_sequence = split //,$_read_buffer[$k];
 		for(my $i=0; $i<$_W; $i++) {
 			my $symbol = $symbol_sequence[$i];			
-			$frequency[$i]{$symbol}++;
+			$_freq[$i]{$symbol}++;
 			$symbols_count{$symbol}++;
 		}
 	}
@@ -258,20 +259,36 @@ sub _estimate_probabilities {
 	# replace undef so don't get uninitialzed error when calculating probabilities
 	for(my $i=0; $i<$_W; $i++) {
 		foreach my $symbol (@symbols) {
-			if(!defined($frequency[$i]{$symbol})) {$frequency[$i]{$symbol} = 0}
+			if(!defined($_freq[$i]{$symbol})) {$_freq[$i]{$symbol} = 0}
 		}
 	}
 		
+	return 1;
+}
+
+
+sub _calculate_diversity {
+
+	# in case a symbol in the alphabet is not in the input file
+	my @frequency = @_freq;
+	for(my $i=0; $i<$_W; $i++) {
+		foreach my $alpha (@_alphabet) {
+			unless(defined($frequency[$i]{$alpha})) {
+				$frequency[$i]{$alpha} = 0; 
+			}
+		}
+	}
+	
 	# calc probabilities, variances and covariances
 	@_p=();
 	@_var=();
 	@_cov=();
 	for(my $i=0; $i<$_W; $i++) {
-		foreach my $beta (@symbols) {
+		foreach my $beta (@_alphabet) {
 			my $p = $frequency[$i]{$beta}/$_K;
 			$_p[$i]{$beta} = $p;
 			$_var[$i]{$beta} = $p*(1-$p)/$_K;
-			foreach my $alpha (@symbols) {
+			foreach my $alpha (@_alphabet) {
 				if($alpha lt $beta) {
 					$_cov[$i]{$alpha}{$beta} = -$_p[$i]{$alpha}*$_p[$i]{$beta}/$_K;
 					$_cov[$i]{$beta}{$alpha} = $_cov[$i]{$alpha}{$beta};
@@ -279,11 +296,7 @@ sub _estimate_probabilities {
 			}
 		}
 	}
-	return 1;
-}
 
-
-sub _calculate_diversity {
 
 	# build array of alignment postions that are below the null threshold and below the gap threshold
 	# these are the positions in the alignment that will be used to calculate the diversity

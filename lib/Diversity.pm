@@ -263,6 +263,9 @@ sub _estimate_probabilities {
 	}
 		
 	# calc probabilities, variances and covariances
+	@_p=();
+	@_var=();
+	@_cov=();
 	for(my $i=0; $i<$_W; $i++) {
 		foreach my $beta (@symbols) {
 			my $p = $frequency[$i]{$beta}/$_K;
@@ -293,6 +296,7 @@ sub _calculate_diversity {
 	
 	
 	# calc mismatches
+	@_m=();
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_m[$i]{$alpha} = 0;
@@ -310,6 +314,7 @@ sub _calculate_diversity {
 	}
 	
 	# calc expected pairwise coverage
+	@_z=();
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$_z[$i]{$alpha} = 0;

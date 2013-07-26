@@ -245,16 +245,14 @@ sub _accumulate_symbol_frequencies {
 	}
 	
 	# accumulate symbol counts	
-	my %symbols_count = ();
 	for(my $k=0; $k<$_K; $k++) { 
 		my @symbol_sequence = split //,$_read_buffer[$k];
 		for(my $i=0; $i<$_W; $i++) {
 			my $symbol = $symbol_sequence[$i];			
 			$_freq[$i]{$symbol}++;
-			$symbols_count{$symbol}++;
 		}
 	}
-	
+=begin	
 	my @symbols = sort keys %symbols_count;
 	# replace undef so don't get uninitialzed error when calculating probabilities
 	for(my $i=0; $i<$_W; $i++) {
@@ -262,14 +260,15 @@ sub _accumulate_symbol_frequencies {
 			if(!defined($_freq[$i]{$symbol})) {$_freq[$i]{$symbol} = 0}
 		}
 	}
-		
+=cut		
 	return 1;
 }
 
 
 sub _calculate_diversity {
 
-	# in case a symbol in the alphabet is not in the input file
+	# copy the array of frequencies and augment with alphabet symbols
+	# that are in the alphabet but didn't appear in the input file
 	my @frequency = @_freq;
 	for(my $i=0; $i<$_W; $i++) {
 		foreach my $alpha (@_alphabet) {

@@ -9,6 +9,26 @@ use Bio::SeqIO;
 # use Benchmark;
 
 # ----------------------------------------
+# debug
+# ----------------------------------------
+
+sub _debug_freq {
+	my $freq_ref = shift;
+	# print Dumper($freq_ref); die();
+
+	warn("\$freq_ref = $freq_ref\n");
+	
+	my %symbols=();
+	foreach my $row (@$freq_ref) {
+		# print Dumper($row);
+		foreach my $symbol (keys %$row) {
+			$symbols{$symbol} += $row->{$symbol};
+		}
+	}
+	print Dumper(\%symbols);
+}
+
+# ----------------------------------------
 # symbols & matrices
 # ----------------------------------------
 
@@ -18,6 +38,7 @@ my $_gap_null;		# gap and null symbols
 my @_residues;		# residues array
 my $_residues;		# residues string
 my @_alphabet;		# alphabet
+my @_observed_symbols;	# all symbols found in the input file
 my $_residues_and_gap;   # all symbols except null
 
 # ----------------------------------------
@@ -61,7 +82,6 @@ sub new
 
 	$_gap_threshold = 1;
 	$_null_threshold = 1;
-
 	
 	return bless{};
 }
@@ -73,6 +93,14 @@ sub new
 sub _do_dna_subs {
 
 	warn("do_subs\n");
+
+	@_residues = ('A','T','C','G');
+
+	$_residues = join '',@_residues;
+	$_residues_and_gap = $_residues.$_gap;
+	@_alphabet = sort (@_residues, $_gap, $_null);
+		
+
 	%_m_mat = (   # mismatch matrix
 		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
 		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
@@ -96,6 +124,12 @@ sub _do_dna_subs {
 sub _do_dna_indels {
 	warn("do_indels\n");
 
+	@_residues = ('A','T','C','G');
+
+	$_residues = join '',@_residues;
+	$_residues_and_gap = $_residues.$_gap;
+	@_alphabet = sort (@_residues, $_gap, $_null);
+
 	%_m_mat = (   # mismatch matrix
 		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
 		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
@@ -116,6 +150,13 @@ sub _do_dna_indels {
 }
 
 sub _do_dna_synonymous {
+	warn("do_synonymous\n");
+
+	@_residues = ('A','T','C','G','a','t','c','g');
+
+	$_residues = join '',@_residues;
+	$_residues_and_gap = $_residues.$_gap;
+	@_alphabet = sort (@_residues, $_gap, $_null);
 
 	%_m_mat = (   # mismatch matrix
 		'A'   =>{'A'=>0,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
@@ -145,7 +186,6 @@ sub _do_dna_synonymous {
 
 }
 
-
 # ----------------------------------
 # initialize new diversity calculation
 # ----------------------------------
@@ -161,11 +201,6 @@ sub initialize {
 		$_gap      = '-';
 		$_gap_null = $_gap.$_null;
 		
-		@_residues = ('A','T','C','G');
-
-		$_residues = join '',@_residues;
-		$_residues_and_gap = $_residues.$_gap;
-		@_alphabet = sort (@_residues, $_gap, $_null);
 		$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
 										-format=>  'fasta',
 										-alphabet=>'dna'
@@ -226,22 +261,18 @@ sub _standardize_the_read {
 		$seq_string = substr($seq_string, 0, -$len) . ($_null x $len);
 	}
 		
-	# 3) finally replace everything that is not a residue or a gap with the null symbol
-	# $seq_string = uc $seq_string;
-	# warn("commented out uc()");
-	# $seq_string =~ s/[^$_residues_and_gap]/$_null/ig;
-
 	return $seq_string;
 }
 
 sub _accumulate_symbol_frequencies {
+	warn("_accumulate_symbol_frequencies()\n");
 
 	@_freq =();
+	my %counts=();
 
 	# initialize the accumulators
 	for(my $i=0; $i<$_W; $i++) {
 		$_freq[$i]=undef;
-		$_p[$i] = undef;
 	}
 	
 	# accumulate symbol counts	
@@ -250,17 +281,11 @@ sub _accumulate_symbol_frequencies {
 		for(my $i=0; $i<$_W; $i++) {
 			my $symbol = $symbol_sequence[$i];			
 			$_freq[$i]{$symbol}++;
+			$counts{$symbol}++;
 		}
 	}
-=begin	
-	my @symbols = sort keys %symbols_count;
-	# replace undef so don't get uninitialzed error when calculating probabilities
-	for(my $i=0; $i<$_W; $i++) {
-		foreach my $symbol (@symbols) {
-			if(!defined($_freq[$i]{$symbol})) {$_freq[$i]{$symbol} = 0}
-		}
-	}
-=cut		
+	@_observed_symbols = keys %counts;
+	
 	return 1;
 }
 
@@ -269,16 +294,33 @@ sub _calculate_diversity {
 
 	# copy the array of frequencies and augment with alphabet symbols
 	# that are in the alphabet but didn't appear in the input file
-	my @frequency = @_freq;
+	my @frequency =();	
 	for(my $i=0; $i<$_W; $i++) {
-		foreach my $alpha (@_alphabet) {
-			unless(defined($frequency[$i]{$alpha})) {
-				$frequency[$i]{$alpha} = 0; 
+		foreach my $symbol (@_observed_symbols) {
+			if(defined($_freq[$i]{$symbol})) {
+				$frequency[$i]{$symbol} = $_freq[$i]{$symbol};
+			}
+			else{
+				$frequency[$i]{$symbol} = 0; 
 			}
 		}
 	}
-	
-	# calc probabilities, variances and covariances
+
+
+
+	if($_diversity_type ne 'syn') {
+		for(my $i=0; $i<$_W; $i++) {
+			foreach my $alpha (@_residues) {
+				my $lower_case_alpha = lc($alpha);
+				if(defined($frequency[$i]{$lower_case_alpha})) {
+					$frequency[$i]{$alpha} += $frequency[$i]{$lower_case_alpha};
+					delete($frequency[$i]{$lower_case_alpha});
+				}
+			}
+		}
+	}
+		
+	# calculate probabilities, variances and covariances
 	@_p=();
 	@_var=();
 	@_cov=();
@@ -296,7 +338,6 @@ sub _calculate_diversity {
 		}
 	}
 
-
 	# build array of alignment postions that are below the null threshold and below the gap threshold
 	# these are the positions in the alignment that will be used to calculate the diversity
 	@_valid_positions=();
@@ -305,7 +346,6 @@ sub _calculate_diversity {
 			push @_valid_positions, $i;
 		}
 	}
-	
 	
 	# calc mismatches
 	@_m=();
@@ -369,6 +409,7 @@ sub _calculate_diversity {
 	}
 	$_sigmaD = sqrt($_varD);
 	
+
 	return 1;
 }
 
@@ -385,7 +426,7 @@ sub apd {
 		my @seq_i = split //,$_read_buffer[$i];
 		for(my $j=$i; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
-			foreach my $w (@_valid_positions) {
+			for(my $w=0; $w< $_W; $w++) {
 				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};
 				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]};
 			}
@@ -413,22 +454,27 @@ sub set_null_threshold {
 sub epd {
 	my $self=shift;
 	my %arguments = @_;
-	if(!defined($arguments{'type'})) {
+	$_diversity_type = $arguments{'type'};
+
+
+
+
+	if(!defined($_diversity_type)) {
+		$_diversity_type = 'no_indels';
 		_do_dna_subs();
 	}
-	elsif($arguments{'type'} eq 'indels') {
+	elsif($_diversity_type eq 'with_indels') {
 		_do_dna_indels();
 	}
-	elsif($arguments{'type'} eq 'no_indels') {
+	elsif($_diversity_type eq 'no_indels') {
 		_do_dna_subs();
 	}
-	elsif($arguments{'type'} eq 'synonymous') {
+	elsif($_diversity_type eq 'syn') {
 		_do_dna_synonymous();
 	}
-
-	
-	
-	my $_diversity_mode = shift;
+	else {
+		die("unknown diversity type: '$_diversity_type'");
+	}
 	
 	_calculate_diversity();
 	
@@ -461,6 +507,7 @@ sub n_reads {
 }
 
 1;
+
 
 __END__
 

@@ -92,7 +92,7 @@ sub new
 # ----------------------------------
 sub _do_dna_subs {
 
-	warn("do_subs\n");
+	# warn("do_subs\n");
 
 	@_residues = ('A','T','C','G');
 
@@ -122,7 +122,7 @@ sub _do_dna_subs {
 }
 
 sub _do_dna_indels {
-	warn("do_indels\n");
+	# warn("do_indels\n");
 
 	@_residues = ('A','T','C','G');
 
@@ -150,7 +150,8 @@ sub _do_dna_indels {
 }
 
 sub _do_dna_synonymous {
-	warn("do_synonymous\n");
+	
+	# warn("do_synonymous\n");
 
 	@_residues = ('A','T','C','G','a','t','c','g');
 
@@ -265,7 +266,7 @@ sub _standardize_the_read {
 }
 
 sub _accumulate_symbol_frequencies {
-	warn("_accumulate_symbol_frequencies()\n");
+	# warn("_accumulate_symbol_frequencies()\n");
 
 	@_freq =();
 	my %counts=();
@@ -292,8 +293,8 @@ sub _accumulate_symbol_frequencies {
 
 sub _calculate_diversity {
 
-	# copy the array of frequencies and augment with alphabet symbols
-	# that are in the alphabet but didn't appear in the input file
+	# copy the array of frequencies and fill-in with 0 the frequency of missing
+	# symbols in positions that don't have the full complement of symbols
 	my @frequency =();	
 	for(my $i=0; $i<$_W; $i++) {
 		foreach my $symbol (@_observed_symbols) {
@@ -306,8 +307,19 @@ sub _calculate_diversity {
 		}
 	}
 
-
-
+	# fill-in with 0's the frequency of any alphabet symbols that did not appear
+	# in the input file
+	for(my $i=0; $i<$_W; $i++) {
+		foreach my $alpha (@_residues) {
+			if(!defined($frequency[$i]{$alpha})) {
+				$frequency[$i]{$alpha} = 0;
+			}
+		}	
+	}	
+	
+	# if the input file has lower and upper case symbols collapse them all to 
+	# upper case, except if we are calculating synonymous diversity in which case
+	# the lower case symbols mark the amino acid residues with synonymous mutations
 	if($_diversity_type ne 'syn') {
 		for(my $i=0; $i<$_W; $i++) {
 			foreach my $alpha (@_residues) {
@@ -316,16 +328,33 @@ sub _calculate_diversity {
 					$frequency[$i]{$alpha} += $frequency[$i]{$lower_case_alpha};
 					delete($frequency[$i]{$lower_case_alpha});
 				}
+
 			}
 		}
 	}
-		
+
+	
+	for(my $i=0; $i<$_W; $i++) {
+		if(!defined($_freq[$i]{$_gap})) {
+				$frequency[$i]{$_gap}=0;	
+		}
+		if(!defined($_freq[$i]{$_null})) {
+				$frequency[$i]{$_null}=0;	
+		}
+	}
+	
+	# _debug_freq(\@frequency); 
+	
 	# calculate probabilities, variances and covariances
 	@_p=();
 	@_var=();
 	@_cov=();
 	for(my $i=0; $i<$_W; $i++) {
 		foreach my $beta (@_alphabet) {
+			if(!defined($frequency[$i]{$beta})){
+				warn("undefined element for i = $i and beta = $beta");
+			}
+		
 			my $p = $frequency[$i]{$beta}/$_K;
 			$_p[$i]{$beta} = $p;
 			$_var[$i]{$beta} = $p*(1-$p)/$_K;
@@ -478,7 +507,7 @@ sub epd {
 	
 	_calculate_diversity();
 	
-	return ($_D, $_sigmaD);
+	return ($_D, $_sigmaD, $_Z);
 }
 
 sub diversity {

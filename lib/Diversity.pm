@@ -32,42 +32,44 @@ sub _debug_freq {
 # symbols & matrices
 # ----------------------------------------
 
-my $_null;			# null symbol
-my $_gap;			# gap symbol
-my $_gap_null;		# gap and null symbols
-my @_residues;		# residues array
-my $_residues;		# residues string
-my @_alphabet;		# alphabet
+my $_null;			    # null symbol
+my $_gap;			    # gap symbol
+my $_gap_null;		    # gap and null symbols
+my @_residues;		    # residues array
+my $_residues;		    # residues string
+my @_alphabet;		    # alphabet
 my @_observed_symbols;	# all symbols found in the input file
-my $_residues_and_gap;   # all symbols except null
+my $_residues_and_gap;  # all symbols except null
 
 # ----------------------------------------
 # diversity and variance calculations
 # ----------------------------------------
-my $_diversity_type; # indels, substitutions only, synonymous, etc.
+my $_diversity_type; # including indels or substitutions only
 my $_alphabet_type;  # 'dna' or 'aa' (amino acids)
 
 my %_m_mat;	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
 my %_c_mat;	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
 
-my $_K;           # number of reads in the alignment file
-my $_W;           # width (number of columns) of the alignment file
+my $_K;         # number of reads in the alignment file
+my $_W;         # width (number of columns) of the alignment file
 my $_M;     	# expected number of mismatches
-my $_Z;		# expected pairwise width
+my $_Z;		    # expected pairwise width
 my $_D;     	# diversity
 my $_varD;		# variance of the diversity
 my $_sigmaD;	# standard deviation of D
 
-my @_freq;        # symbol frequencies in input file
-my @_p;		# symbol probabilities $_p[$i]{$symbol}
+my @_freq;      # symbol frequencies in input file
+my @_p;		    # symbol probabilities $_p[$i]{$symbol}
 my @_m;
 my @_z;
 my @_var;   	# variances of the symbol probabilities
 my @_cov;   	# covariance of the symbol probabilities
-my @_valid_positions;  	# array positions in the alginment that can be included in
-				# the diversity calculation
-my $_gap_threshold;	# if proportion of gap symbols exceeds _gap_threshold, the position is no included in diversity 
-my $_null_threshold;	# if proportion of null symbols exceeds _gap_threshold, the position is no included in diversity
+my @_valid_positions;  	# array positions in the alginment that can be included 
+                        #   in the diversity calculation
+my $_gap_threshold;	    # if proportion of gap symbols exceeds _gap_threshold, 
+                        #   the position is not included in diversity 
+my $_null_threshold;	# if proportion of null symbols exceeds _gap_threshold, 
+                        #   the position is not included in diversity
 
 
 # ----------------------------------
@@ -149,44 +151,6 @@ sub _do_dna_indels {
 	);
 }
 
-sub _do_dna_synonymous {
-	
-	# warn("do_synonymous\n");
-
-	@_residues = ('A','T','C','G','a','t','c','g');
-
-	$_residues = join '',@_residues;
-	$_residues_and_gap = $_residues.$_gap;
-	@_alphabet = sort (@_residues, $_gap, $_null);
-
-	%_m_mat = (   # mismatch matrix
-		'A'   =>{'A'=>0,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'T'   =>{'A'=>1,'T'=>0,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'C'   =>{'A'=>1,'T'=>1,'C'=>0,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'G'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'a'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		't'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'c'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'g'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		$_gap =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		$_null=>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0}
-	);
-	
-	%_c_mat = (   # pairwise coverage matrix
-		'A'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'T'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'C'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'G'   =>{'A'=>1,'T'=>1,'C'=>1,'G'=>1,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'a'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		't'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'c'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		'g'   =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		$_gap =>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0},
-		$_null=>{'A'=>0,'T'=>0,'C'=>0,'G'=>0,'a'=>0,'t'=>0,'c'=>0,'g'=>0,$_gap=>0,$_null=>0}
-	);
-
-}
-
 # ----------------------------------
 # initialize new diversity calculation
 # ----------------------------------
@@ -234,7 +198,6 @@ sub initialize {
 
 	_accumulate_symbol_frequencies();
 
-	
 	return(1);
 }
 
@@ -261,7 +224,10 @@ sub _standardize_the_read {
 		my $len     = length($trailer);
 		$seq_string = substr($seq_string, 0, -$len) . ($_null x $len);
 	}
-		
+	
+	# Convert any lowercase alphabet symbols to uppercase
+	$seq_string = uc $seq_string;	
+	
 	return $seq_string;
 }
 
@@ -316,23 +282,6 @@ sub _calculate_diversity {
 			}
 		}	
 	}	
-	
-	# if the input file has lower and upper case symbols collapse them all to 
-	# upper case, except if we are calculating synonymous diversity in which case
-	# the lower case symbols mark the amino acid residues with synonymous mutations
-	if($_diversity_type ne 'syn') {
-		for(my $i=0; $i<$_W; $i++) {
-			foreach my $alpha (@_residues) {
-				my $lower_case_alpha = lc($alpha);
-				if(defined($frequency[$i]{$lower_case_alpha})) {
-					$frequency[$i]{$alpha} += $frequency[$i]{$lower_case_alpha};
-					delete($frequency[$i]{$lower_case_alpha});
-				}
-
-			}
-		}
-	}
-
 	
 	for(my $i=0; $i<$_W; $i++) {
 		if(!defined($_freq[$i]{$_gap})) {
@@ -501,9 +450,6 @@ sub epd {
 	}
 	elsif($_diversity_type eq 'no_indels') {
 		_do_dna_subs();
-	}
-	elsif($_diversity_type eq 'syn') {
-		_do_dna_synonymous();
 	}
 	else {
 		die("unknown diversity type: '$_diversity_type'");

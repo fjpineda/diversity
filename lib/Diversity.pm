@@ -64,7 +64,7 @@ my @_m;
 my @_z;
 my @_var;   	# variances of the symbol probabilities
 my @_cov;   	# covariance of the symbol probabilities
-my @_valid_positions;  	# array positions in the alginment that can be included 
+my @_valid_positions;  	# array positions in the alignment that can be included 
                         #   in the diversity calculation
 my $_gap_threshold;	    # if proportion of gap symbols exceeds _gap_threshold, 
                         #   the position is not included in diversity 
@@ -438,9 +438,6 @@ sub epd {
 	my %arguments = @_;
 	$_diversity_type = $arguments{'type'};
 
-
-
-
 	if(!defined($_diversity_type)) {
 		$_diversity_type = 'no_indels';
 		_do_dna_subs();
@@ -482,7 +479,18 @@ sub Z {
 
 sub n_reads {
 	my $self=shift;
-	return $_K
+	return $_K;
+}
+
+sub valid_positions {
+	my $self=shift;
+	my $size = @_valid_positions;
+	return $size;
+}
+
+sub width {
+	my $self=shift;
+	return $_W;
 }
 
 1;

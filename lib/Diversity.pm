@@ -163,7 +163,7 @@ sub initialize {
 
 	if(($alphabet_type eq 'dna')) {
 		$_null     = 'N';
-		$_gap      = '-';
+		$_gap      = '.-~';
 		$_gap_null = $_gap.$_null;
 		
 		$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
@@ -256,8 +256,46 @@ sub _accumulate_symbol_frequencies {
 	return 1;
 }
 
+sub _alphabet_check {
 
-sub _calculate_diversity {
+	if ($_alphabet_type eq 'dna') {
+		my $observed_symbols = join("",@_observed_symbols);
+			
+		# Change freqs of any unknown symbols to nulls
+		if ($observed_symbols !~ /[^ATCG$_gap$_null]/) {
+			for(my $i=0; $i<$_W; $i++) { 
+				foreach my $symbol (@_observed_symbols) {
+					if(defined($_freq[$i]{$symbol}) && $symbol =~ /[^ATCG$_null$_gap]/) {
+						$_freq[$i]{$_null} += $_freq[$i]{$symbol};
+						delete $_freq[$i]{$symbol};
+					}
+				}
+			}
+		}
+		
+		# Change freqs of any unknown symbols to nulls
+# 		if ($observed_symbols !~ /[^ATCG$_null$_gap]/) {
+# 			my @mask = (0) x ($_W - 1);
+# 			for(my $i=0; $i<$_W; $i++) { 
+# 				foreach my $symbol (@_observed_symbols) {
+# 					if(defined($_freq[$i]{$symbol}) && $symbol =~ /[^ATCG$_null$_gap]/) {
+# 						$mask[$i] += $_freq[$i]{$symbol};
+# 						delete $_freq[$i]{$symbol};
+# 					}
+# 				}
+# 			}
+# 			for(my $i=0; $i<$_W; $i++) { 
+# 				$_freq[$i]{$_null} += $mask[$i];
+# 			}
+# 		}
+	}
+	
+	return 1;
+}
+
+sub _calculate_diversity {	
+
+	alphabet_check();
 
 	# copy the array of frequencies and fill-in with 0 the frequency of missing
 	# symbols in positions that don't have the full complement of symbols
@@ -324,7 +362,7 @@ sub _calculate_diversity {
 			push @_valid_positions, $i;
 		}
 	}
-	
+		
 	# calc mismatches
 	@_m=();
 	foreach my $i (@_valid_positions) {

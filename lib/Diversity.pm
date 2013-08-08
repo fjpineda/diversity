@@ -544,6 +544,20 @@ sub width {
 	return $_W;
 }
 
+sub print_prob_by_pos {
+	my $self=shift;
+	print join("\t","",@_alphabet), "\n";
+	for(my $i=0; $i<$_W; $i++) {
+		print "$i\t";
+		foreach my $symbol ((@_alphabet)) {
+			print $_p[$i]{$symbol}, "\t";
+		}
+		print "\n";
+	}
+	return 1;
+}
+
+
 1;
 
 

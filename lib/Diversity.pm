@@ -363,6 +363,12 @@ sub _calculate_diversity {
 		}
 	}
 		
+	unless (@_valid_positions) {
+		($_D, $varD, $sigmaD) = ('NA') x 3;
+		($_M, $_Z) = (0) x 2;
+		return 0;
+	}
+	
 	# calc mismatches
 	@_m=();
 	foreach my $i (@_valid_positions) {

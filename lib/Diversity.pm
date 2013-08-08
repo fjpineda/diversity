@@ -40,6 +40,7 @@ my $_residues;		    # residues string
 my @_alphabet;		    # alphabet
 my @_observed_symbols;	# all symbols found in the input file
 my $_residues_and_gap;  # all symbols except null
+my @_analysis_mask;	    # binary mask defining which positions to analyze
 
 # ----------------------------------------
 # diversity and variance calculations
@@ -157,13 +158,13 @@ sub _do_dna_indels {
 my @_read_buffer; # holds preprocessed read strings
 
 sub initialize {
-	my ($self, $infilename, $alphabet_type) = @_;
+	my ($self, $infilename, $alphabet_type, $analysis_mask) = @_;
 
 	my $seqio_obj;
 
 	if(($alphabet_type eq 'dna')) {
 		$_null     = 'N';
-		$_gap      = '.-~';
+		$_gap      = '-';
 		$_gap_null = $_gap.$_null;
 		
 		$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
@@ -171,6 +172,8 @@ sub initialize {
 										-alphabet=>'dna'
 							);
 	}
+
+	if ($analysis_mask) { @_analysis_mask = split(//,$analysis_mask)}
 
 	# reset variables
 	$_K     = 0;
@@ -295,7 +298,11 @@ sub _alphabet_check {
 
 sub _calculate_diversity {	
 
+	# handle any unexpected characters
 	alphabet_check();
+	
+	# populate the @_analysis_mask array unless a mask was provided
+	unless (@_analysis_mask) { @_analysis_mask = (1) x $_W;
 
 	# copy the array of frequencies and fill-in with 0 the frequency of missing
 	# symbols in positions that don't have the full complement of symbols
@@ -375,7 +382,7 @@ sub _calculate_diversity {
 		foreach my $alpha (@_alphabet) {
 			$_m[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
+				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta}*$_analysis_mask[$i];
 			}
 		}
 	}
@@ -383,7 +390,7 @@ sub _calculate_diversity {
 	$_M=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
+			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}*$_analysis_mask[$i]
 		}
 	}
 	
@@ -393,7 +400,7 @@ sub _calculate_diversity {
 		foreach my $alpha (@_alphabet) {
 			$_z[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta};
+				$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta}*$_analysis_mask[$i];
 			}
 		}
 	}
@@ -401,7 +408,7 @@ sub _calculate_diversity {
 	$_Z=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
+			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}*$_analysis_mask[$i]
 		}
 	}
 
@@ -426,7 +433,7 @@ sub _calculate_diversity {
 					$sum += 2*$Dp{$beta}*$_cov[$i]{$alpha}{$beta};
 				}
 			}
-			$_varD += $Dp{$alpha}*$sum;
+			$_varD += $Dp{$alpha}*$sum*$_analysis_mask[$i];
 		}
 	}
 	$_sigmaD = sqrt($_varD);
@@ -449,8 +456,8 @@ sub apd {
 		for(my $j=$i; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
 			for(my $w=0; $w< $_W; $w++) {
-				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};
-				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]};
+				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]}*$_analysis_mask[$i];
+				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]}*$_analysis_mask[$i];
 			}
 		}
 	}

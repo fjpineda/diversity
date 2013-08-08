@@ -173,8 +173,6 @@ sub initialize {
 							);
 	}
 
-	if ($analysis_mask) { @_analysis_mask = split(//,$analysis_mask)}
-
 	# reset variables
 	$_K     = 0;
 	$_W     = 0;
@@ -200,6 +198,13 @@ sub initialize {
 	}
 
 	_accumulate_symbol_frequencies();
+		
+	# handle any unexpected characters
+	_alphabet_check($alphabet_type);
+	
+	# populate the analysis mask array: 0 = skip; 1 = analyze; (default = analyze all positions)
+	if ($analysis_mask) { @_analysis_mask = split(//,$analysis_mask) }
+	else { @_analysis_mask = (1) x $_W }
 
 	return(1);
 }
@@ -261,7 +266,8 @@ sub _accumulate_symbol_frequencies {
 
 sub _alphabet_check {
 
-	if ($_alphabet_type eq 'dna') {
+	my $alphabet_type = shift;
+	if ($alphabet_type eq 'dna') {
 		my $observed_symbols = join("",@_observed_symbols);
 			
 		# Change freqs of any unknown symbols to nulls
@@ -297,13 +303,7 @@ sub _alphabet_check {
 }
 
 sub _calculate_diversity {	
-
-	# handle any unexpected characters
-	alphabet_check();
 	
-	# populate the @_analysis_mask array unless a mask was provided
-	unless (@_analysis_mask) { @_analysis_mask = (1) x $_W;
-
 	# copy the array of frequencies and fill-in with 0 the frequency of missing
 	# symbols in positions that don't have the full complement of symbols
 	my @frequency =();	
@@ -371,7 +371,7 @@ sub _calculate_diversity {
 	}
 		
 	unless (@_valid_positions) {
-		($_D, $varD, $sigmaD) = ('NA') x 3;
+		($_D, $_varD, $_sigmaD) = ('NA') x 3;
 		($_M, $_Z) = (0) x 2;
 		return 0;
 	}

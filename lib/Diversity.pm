@@ -163,19 +163,19 @@ sub initialize {
 
 	my $seqio_obj;
 
-	if(($alphabet_type eq 'dna')) {
+	if($alphabet_type eq 'dna') {
 		$_null     = 'N';
 		$_gap      = '-';
 		$_gap_null = $_gap.$_null;
 		@_residues = ('A','T','C','G');
 	}
-	elsif(($alphabet_type eq 'rna')) {
+	elsif($alphabet_type eq 'rna') {
 		$_null     = 'N';
 		$_gap      = '-';
 		$_gap_null = $_gap.$_null;
 		@_residues = ('A','U','C','G');
 	}
-	elsif(($alphabet_type eq 'protein')) {die("Protein diversity not yet implemented")}
+	elsif($alphabet_type eq 'protein') {die("Protein diversity not yet implemented")}
 
 	$_residues = join '',@_residues;
 	$_residues_and_gap = $_residues.$_gap;
@@ -214,13 +214,13 @@ sub initialize {
 	_accumulate_symbol_frequencies();
 			
 	# die if unexpected symbols are detected
-	$observed_symbols = join("", @_observed_symbols);
-	if ($observed_symbols !~ /[^$_alphabet]/) {
-		my $msg = "Unexpected symbols detected in the input file!\n";
-		$msg = $msg . "expected alphabet: $_alphabet\n";
-		$msg = $msg . "found alphabet: @_observed_symbols\n";
-		die ($msg);
-	}
+	my $observed_symbols = join("", @_observed_symbols);
+	#if ($observed_symbols !~ /[^$_alphabet]/) {
+	#	my $msg = "Unexpected symbols detected in the input file!\n";
+	#	$msg = $msg . "expected alphabet: $_alphabet\n";
+	#	$msg = $msg . "found alphabet: @_observed_symbols\n";
+	#	die ($msg);
+	#}
 
 	# populate the analysis mask array: 0 = skip; 1 = analyze; (default = analyze all positions)
 	if ($analysis_mask) { @_analysis_mask = split(//,$analysis_mask) }

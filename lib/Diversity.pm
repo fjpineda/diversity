@@ -38,6 +38,7 @@ my $_gap_null;		    # gap and null symbols
 my @_residues;		    # residues array
 my $_residues;		    # residues string
 my @_alphabet;		    # alphabet
+my $_alphabet;
 my @_observed_symbols;	# all symbols found in the input file
 my $_residues_and_gap;  # all symbols except null
 my @_analysis_mask;	    # binary mask defining which positions to analyze
@@ -166,12 +167,25 @@ sub initialize {
 		$_null     = 'N';
 		$_gap      = '-';
 		$_gap_null = $_gap.$_null;
-		
-		$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
-										-format=>  'fasta',
-										-alphabet=>'dna'
-							);
+		@_residues = ('A','T','C','G');
 	}
+	elsif(($alphabet_type eq 'rna')) {
+		$_null     = 'N';
+		$_gap      = '-';
+		$_gap_null = $_gap.$_null;
+		@_residues = ('A','U','C','G');
+	}
+	elsif(($alphabet_type eq 'protein')) {die("Protein diversity not yet implemented")}
+
+	$_residues = join '',@_residues;
+	$_residues_and_gap = $_residues.$_gap;
+	@_alphabet = sort (@_residues, $_gap, $_null);
+	$_alphabet = join("", @_alphabet);
+
+	$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
+									-format=>  'fasta',
+									-alphabet=>$alphabet_type
+						);
 
 	# reset variables
 	$_K     = 0;
@@ -198,10 +212,16 @@ sub initialize {
 	}
 
 	_accumulate_symbol_frequencies();
-		
-	# handle any unexpected characters
-	_alphabet_check($alphabet_type);
-	
+			
+	# die if unexpected symbols are detected
+	$observed_symbols = join("", @_observed_symbols);
+	if ($observed_symbols !~ /[^$_alphabet]/) {
+		my $msg = "Unexpected symbols detected in the input file!\n";
+		$msg = $msg . "expected alphabet: $_alphabet\n";
+		$msg = $msg . "found alphabet: @_observed_symbols\n";
+		die ($msg);
+	}
+
 	# populate the analysis mask array: 0 = skip; 1 = analyze; (default = analyze all positions)
 	if ($analysis_mask) { @_analysis_mask = split(//,$analysis_mask) }
 	else { @_analysis_mask = (1) x $_W }
@@ -260,44 +280,6 @@ sub _accumulate_symbol_frequencies {
 		}
 	}
 	@_observed_symbols = keys %counts;
-	
-	return 1;
-}
-
-sub _alphabet_check {
-
-	my $alphabet_type = shift;
-	if ($alphabet_type eq 'dna') {
-		my $observed_symbols = join("",@_observed_symbols);
-			
-		# Change freqs of any unknown symbols to nulls
-		if ($observed_symbols !~ /[^ATCG$_gap$_null]/) {
-			for(my $i=0; $i<$_W; $i++) { 
-				foreach my $symbol (@_observed_symbols) {
-					if(defined($_freq[$i]{$symbol}) && $symbol =~ /[^ATCG$_null$_gap]/) {
-						$_freq[$i]{$_null} += $_freq[$i]{$symbol};
-						delete $_freq[$i]{$symbol};
-					}
-				}
-			}
-		}
-		
-		# Change freqs of any unknown symbols to nulls
-# 		if ($observed_symbols !~ /[^ATCG$_null$_gap]/) {
-# 			my @mask = (0) x ($_W - 1);
-# 			for(my $i=0; $i<$_W; $i++) { 
-# 				foreach my $symbol (@_observed_symbols) {
-# 					if(defined($_freq[$i]{$symbol}) && $symbol =~ /[^ATCG$_null$_gap]/) {
-# 						$mask[$i] += $_freq[$i]{$symbol};
-# 						delete $_freq[$i]{$symbol};
-# 					}
-# 				}
-# 			}
-# 			for(my $i=0; $i<$_W; $i++) { 
-# 				$_freq[$i]{$_null} += $mask[$i];
-# 			}
-# 		}
-	}
 	
 	return 1;
 }
@@ -369,11 +351,10 @@ sub _calculate_diversity {
 			push @_valid_positions, $i;
 		}
 	}
-		
+	
+	# if there are no valid positions to analyze return undef	
 	unless (@_valid_positions) {
-		($_D, $_varD, $_sigmaD) = ('NA') x 3;
-		($_M, $_Z) = (0) x 2;
-		return 0;
+		return undef;
 	}
 	
 	# calc mismatches

@@ -37,18 +37,17 @@ my $_gap;			    # gap symbol
 my $_gap_null;		    # gap and null symbols
 my @_residues;		    # residues array
 my $_residues;		    # residues string
-my @_alphabet;		    # alphabet
-my $_alphabet;
+my @_alphabet;		    # alphabet array
+my $_alphabet;			# alphabet string
 my @_observed_symbols;	# all symbols found in the input file
 my $_residues_and_gap;  # all symbols except null
-my @_analysis_mask;	    # binary mask defining which positions to analyze
+my @_mask;	            # binary mask defining which positions to analyze
 
 # ----------------------------------------
 # diversity and variance calculations
 # ----------------------------------------
 my $_diversity_type; # including indels or substitutions only
-my $_alphabet_type;  # 'dna' or 'aa' (amino acids)
-
+my $_alphabet_type;  # 'dna', 'rna', or 'protein'
 my %_m_mat;	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
 my %_c_mat;	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
 
@@ -94,64 +93,106 @@ sub new
 # ----------------------------------
 # initialize indicators
 # ----------------------------------
-sub _do_dna_subs {
+sub _do_subs {
+	# warn("do_subs\n");		
 
-	# warn("do_subs\n");
-
-	@_residues = ('A','T','C','G');
-
-	$_residues = join '',@_residues;
-	$_residues_and_gap = $_residues.$_gap;
-	@_alphabet = sort (@_residues, $_gap, $_null);
-		
-
-	%_m_mat = (   # mismatch matrix
-		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		'C'   =>{'A'=>1, 'T'=>1, 'C'=>0, 'G'=>1, $_gap=>0, $_null=>0},
-		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>0, $_gap=>0, $_null=>0},
-		$_gap =>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0},
-		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-	);
+	my $_m_mat_ref = _build_matrix('subs','mismatch'); # mismatch matrix
+	%_m_mat = %$_m_mat_ref;
+	my $_c_mat_ref = _build_matrix('subs','coverage'); # coverage matrix
+	%_c_mat = %$_c_mat_ref;
 	
-	%_c_mat = (   # mismatch matrix
-		'A'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		'T'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		'C'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		$_gap =>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0},
-		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-	);
+# 	%_m_mat = (   # mismatch matrix
+# 		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>0, 'G'=>1, $_gap=>0, $_null=>0},
+# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>0, $_gap=>0, $_null=>0},
+# 		$_gap =>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0},
+# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
+# 	);
+# 	
+# 	%_c_mat = (   # coverage matrix
+# 		'A'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		'T'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		$_gap =>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0},
+# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
+# 	);
 
 }
 
-sub _do_dna_indels {
-	# warn("do_indels\n");
+sub _do_indels {
+	# warn("do_na_indels\n");
 
-	@_residues = ('A','T','C','G');
+	my $_m_mat_ref = _build_matrix('indels','mismatch'); # mismatch matrix
+	%_m_mat = %$_m_mat_ref;
+	my $_c_mat_ref = _build_matrix('indels','coverage'); # coverage matrix
+	%_c_mat = %$_c_mat_ref;
 
-	$_residues = join '',@_residues;
-	$_residues_and_gap = $_residues.$_gap;
-	@_alphabet = sort (@_residues, $_gap, $_null);
-
-	%_m_mat = (   # mismatch matrix
-		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-		'C'   =>{'A'=>1, 'T'=>1, 'C'=>0, 'G'=>1, $_gap=>1, $_null=>0},
-		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>0, $_gap=>1, $_null=>0},
-		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-	);
-	
-	%_c_mat = (   # mismatch matrix
-		'A'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-		'T'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-		'C'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-	);
+# 	%_m_mat = (   # mismatch matrix
+# 		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
+# 		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
+# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>0, 'G'=>1, $_gap=>1, $_null=>0},
+# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>0, $_gap=>1, $_null=>0},
+# 		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
+# 	);
+# 	
+# 	%_c_mat = (   # coverage matrix
+# 		'A'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
+# 		'T'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
+# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
+# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
+# 		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
+# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
+# 	);
 }
+
+sub _build_matrix {
+	my ($div_type, $matrix_type) = @_;
+	my %matrix;
+	my $false_conditions;
+	
+	foreach my $row (@_alphabet) {
+		my %cols;
+    	foreach my $col (@_alphabet) {
+    	
+    		#define conditions under which each matrix is not true (zero)
+    		if ($div_type eq 'subs' && $matrix_type eq 'mismatch') {
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
+    				|| $col eq $_gap || $row eq $col;
+    		}
+    		elsif ($div_type eq 'subs' && $matrix_type eq 'coverage') {
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
+    				|| $col eq $_gap;
+    		}
+    		elsif($div_type eq 'indels' && $matrix_type eq 'mismatch') {
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $col;
+    		}
+    		elsif($div_type eq 'indels' && $matrix_type eq 'coverage') {
+    			$false_conditions = $row eq $_null || $col eq $_null 
+    				||($row eq $_gap && $col eq $_gap);
+    		}
+    				
+    		my $value = 1;
+    		if ($false_conditions) { $value = 0 }
+    		$cols{$col} = $value;
+    	}
+    	$matrix{$row} = \%cols;
+	}
+	
+	#foreach my $row (keys %matrix) {
+	#	print $row, "\t"; 
+	#	foreach my $col (keys %{$matrix{$row}}) { 
+	#		print $col, " ", $matrix{$row}->{$col}, "\t";
+	#	}
+	#	print "\n";
+	#}
+	#print "\n";
+
+	return (\%matrix);
+}
+
 
 # ----------------------------------
 # initialize new diversity calculation
@@ -159,28 +200,30 @@ sub _do_dna_indels {
 my @_read_buffer; # holds preprocessed read strings
 
 sub initialize {
-	my ($self, $infilename, $alphabet_type, $analysis_mask) = @_;
+	my ($self, $infilename, $alphabet_type, $mask) = @_;
 
 	my $seqio_obj;
 
 	if($alphabet_type eq 'dna') {
 		$_null     = 'N';
-		$_gap      = '-';
-		$_gap_null = $_gap.$_null;
-		@_residues = ('A','T','C','G');
+		@_residues = qw(A C G T);
 	}
 	elsif($alphabet_type eq 'rna') {
 		$_null     = 'N';
-		$_gap      = '-';
-		$_gap_null = $_gap.$_null;
-		@_residues = ('A','U','C','G');
+		@_residues = qw(A C G U);
 	}
-	elsif($alphabet_type eq 'protein') {die("Protein diversity not yet implemented")}
-
+	elsif($alphabet_type eq 'protein') {
+		$_null     = 'X';
+		@_residues = qw(A C D E F G H I K L M N P Q R S T V W Y *);
+	}
+	else {
+		$alphabet_type = 'dna';
+		$_null     = 'N';
+		@_residues = qw(A C G T);
+	}	
+	$_gap      = '-~.';
+	$_gap_null = $_gap.$_null;
 	$_residues = join '',@_residues;
-	$_residues_and_gap = $_residues.$_gap;
-	@_alphabet = sort (@_residues, $_gap, $_null);
-	$_alphabet = join("", @_alphabet);
 
 	$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
 									-format=>  'fasta',
@@ -212,19 +255,29 @@ sub initialize {
 	}
 
 	_accumulate_symbol_frequencies();
-			
+				
+	# detect which of the possible gap symbols is present
+	foreach my $symbol (@_observed_symbols) {
+		if($symbol =~ /[$_gap]/) { $_gap = $symbol }
+	}
+	
+	$_gap_null = $_gap.$_null;
+	$_residues_and_gap = $_residues.$_gap;
+	@_alphabet = sort (@_residues, $_gap, $_null);
+	$_alphabet = join("", @_alphabet);
+	
 	# die if unexpected symbols are detected
 	my $observed_symbols = join("", @_observed_symbols);
-	#if ($observed_symbols !~ /[^$_alphabet]/) {
-	#	my $msg = "Unexpected symbols detected in the input file!\n";
-	#	$msg = $msg . "expected alphabet: $_alphabet\n";
-	#	$msg = $msg . "found alphabet: @_observed_symbols\n";
-	#	die ($msg);
-	#}
+	if ($observed_symbols =~ /[^$_alphabet]/) {
+		my $msg = "Unexpected symbols detected in the input file!\n";
+		$msg = $msg . "expected alphabet: @_alphabet\n";
+		$msg = $msg . "found alphabet: @_observed_symbols\n";
+		die ($msg);
+	}
 
 	# populate the analysis mask array: 0 = skip; 1 = analyze; (default = analyze all positions)
-	if ($analysis_mask) { @_analysis_mask = split(//,$analysis_mask) }
-	else { @_analysis_mask = (1) x $_W }
+	if ($mask) { @_mask = split(//,$mask) }
+	else { @_mask = (1) x $_W }
 
 	return(1);
 }
@@ -292,6 +345,7 @@ sub _calculate_diversity {
 	for(my $i=0; $i<$_W; $i++) {
 		foreach my $symbol (@_observed_symbols) {
 			if(defined($_freq[$i]{$symbol})) {
+				if($symbol =~ [$_gap]) { $_gap = $symbol }
 				$frequency[$i]{$symbol} = $_freq[$i]{$symbol};
 			}
 			else{
@@ -343,11 +397,12 @@ sub _calculate_diversity {
 		}
 	}
 
-	# build array of alignment postions that are below the null threshold and below the gap threshold
+	# build array of alignment positions that are below the null and gap thresholds and are not masked
 	# these are the positions in the alignment that will be used to calculate the diversity
 	@_valid_positions=();
 	for(my $i=0; $i< $_W; $i++) {
-		if(  ($_p[$i]{$_gap} <= $_gap_threshold) & ($_p[$i]{$_null} <= $_null_threshold)) {
+		if(  ($_p[$i]{$_gap} <= $_gap_threshold) & ($_p[$i]{$_null} <= $_null_threshold)
+			& $_mask[$i]) {
 			push @_valid_positions, $i;
 		}
 	}
@@ -363,7 +418,7 @@ sub _calculate_diversity {
 		foreach my $alpha (@_alphabet) {
 			$_m[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta}*$_analysis_mask[$i];
+				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
 			}
 		}
 	}
@@ -371,7 +426,7 @@ sub _calculate_diversity {
 	$_M=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}*$_analysis_mask[$i]
+			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
 		}
 	}
 	
@@ -381,7 +436,7 @@ sub _calculate_diversity {
 		foreach my $alpha (@_alphabet) {
 			$_z[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta}*$_analysis_mask[$i];
+				$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta};
 			}
 		}
 	}
@@ -389,7 +444,7 @@ sub _calculate_diversity {
 	$_Z=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}*$_analysis_mask[$i]
+			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
 		}
 	}
 
@@ -414,7 +469,7 @@ sub _calculate_diversity {
 					$sum += 2*$Dp{$beta}*$_cov[$i]{$alpha}{$beta};
 				}
 			}
-			$_varD += $Dp{$alpha}*$sum*$_analysis_mask[$i];
+			$_varD += $Dp{$alpha}*$sum;
 		}
 	}
 	$_sigmaD = sqrt($_varD);
@@ -437,8 +492,8 @@ sub apd {
 		for(my $j=$i; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
 			for(my $w=0; $w< $_W; $w++) {
-				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]}*$_analysis_mask[$i];
-				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]}*$_analysis_mask[$i];
+				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};
+				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]};
 			}
 		}
 	}
@@ -472,13 +527,13 @@ sub epd {
 
 	if(!defined($_diversity_type)) {
 		$_diversity_type = 'no_indels';
-		_do_dna_subs();
+		_do_subs();
 	}
 	elsif($_diversity_type eq 'with_indels') {
-		_do_dna_indels();
+		_do_indels;
 	}
 	elsif($_diversity_type eq 'no_indels') {
-		_do_dna_subs();
+		_do_subs();
 	}
 	else {
 		die("unknown diversity type: '$_diversity_type'");
@@ -523,19 +578,6 @@ sub valid_positions {
 sub width {
 	my $self=shift;
 	return $_W;
-}
-
-sub print_prob_by_pos {
-	my $self=shift;
-	print join("\t","",@_alphabet), "\n";
-	for(my $i=0; $i<$_W; $i++) {
-		print "$i\t";
-		foreach my $symbol ((@_alphabet)) {
-			print $_p[$i]{$symbol}, "\t";
-		}
-		print "\n";
-	}
-	return 1;
 }
 
 

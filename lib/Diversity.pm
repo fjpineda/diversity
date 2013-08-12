@@ -34,15 +34,14 @@ sub _debug_freq {
 
 my $_null;			    # null symbol
 my $_gap;			    # gap symbol
-my $_gap_null;		    # gap and null symbols
+my $_end;               # symbol for leading or trailing gaps or nulls due to read length
 my @_residues;		    # residues array
 my $_residues;		    # residues string
 my @_alphabet;		    # alphabet array
 my $_alphabet;			# alphabet string
 my @_observed_symbols;	# all symbols found in the input file
-my $_residues_and_gap;  # all symbols except null
-my @_mask;	            # binary mask defining which positions to analyze
-my %_alpha_mask;		# binary make defining which symbols to compare
+my @_mask;	            # binary mask array defining which positions to analyze
+my %_alpha_mask;		# binary mask hash defining which symbols to compare
 
 # ----------------------------------------
 # diversity and variance calculations
@@ -60,9 +59,11 @@ my @_freq;      # symbol frequencies in input file
 my @_valid_positions;  	# array positions in the alignment that can be included 
                         #   in the diversity calculation
 my $_gap_threshold;	    # if proportion of gap symbols exceeds _gap_threshold, 
-                        #   the position is not included in diversity 
-my $_null_threshold;	# if proportion of null symbols exceeds _gap_threshold, 
-                        #   the position is not included in diversity
+                        #   the position is not included in diversity calculations
+my $_null_threshold;	# if proportion of null symbols exceeds _null_threshold, 
+                        #   the position is not included in diversity calculations
+my $_end_threshold;	    # if proportion of end symbols exceeds _end_threshold, 
+                        #   the position is not included in diversity calculations
 
 
 # ----------------------------------
@@ -75,8 +76,9 @@ sub new
 { 
 	my $self = shift;
 
-	$_gap_threshold = 1;
+	$_gap_threshold  = 1;
 	$_null_threshold = 1;
+	$_end_threshold  = 1;
 	
 	return bless{};
 }
@@ -89,16 +91,18 @@ sub _do_subs {
 	foreach my $res (@_residues) {
 		$_alpha_mask{$res} = 1;
 	}
-	$_alpha_mask{$_gap} = 0;
+	$_alpha_mask{$_gap}  = 0;
 	$_alpha_mask{$_null} = 0;
+	$_alpha_mask{$_end}  = 0;	
 }
 
 sub _do_indels {
 	foreach my $res (@_residues) {
 		$_alpha_mask{$res} = 1;
 	}
-	$_alpha_mask{$_gap} = 1;
+	$_alpha_mask{$_gap}  = 1;
 	$_alpha_mask{$_null} = 0;
+	$_alpha_mask{$_end}  = 0;		
 }
 
 # ----------------------------------
@@ -107,35 +111,36 @@ sub _do_indels {
 my @_read_buffer; # holds preprocessed read strings
 
 sub initialize {
-	my ($self, $infilename, $alphabet_type, $mask) = @_;
+	(my $self, my $infilename, $_alphabet_type, my $mask) = @_;
 
 	my $seqio_obj;
 
-	if($alphabet_type eq 'dna') {
+	if($_alphabet_type eq 'dna') {
 		$_null     = 'N';
 		@_residues = qw(A C G T);
 	}
-	elsif($alphabet_type eq 'rna') {
+	elsif($_alphabet_type eq 'rna') {
 		$_null     = 'N';
 		@_residues = qw(A C G U);
 	}
-	elsif($alphabet_type eq 'protein') {
+	elsif($_alphabet_type eq 'protein') {
 		$_null     = 'X';
 		@_residues = qw(A C D E F G H I K L M N P Q R S T V W Y *);
 	}
 	else {
-		$alphabet_type = 'dna';
+		$_alphabet_type = 'dna';
 		$_null     = 'N';
 		@_residues = qw(A C G T);
 	}	
 	$_gap      = '-~.';
-	$_gap_null = $_gap.$_null;
+	$_end      = '#';
 	$_residues = join '',@_residues;
 
 	$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
 									-format=>  'fasta',
-									-alphabet=>$alphabet_type
+									-alphabet=>$_alphabet_type
 						);
+	get_reads($infilename)
 
 	# reset variables
 	$_K     = 0;
@@ -160,20 +165,11 @@ sub initialize {
 		if($symbol =~ /[$_gap]/) { $_gap = $symbol }
 	}
 	
-	$_gap_null = $_gap.$_null;
-	$_residues_and_gap = $_residues.$_gap;
-	@_alphabet = sort (@_residues, $_gap, $_null);
+	@_alphabet = sort (@_residues, $_gap, $_null, $_end);
 	$_alphabet = join("", @_alphabet);
 	
-	# die if unexpected symbols are detected
-	my $observed_symbols = join("", @_observed_symbols);
-	if ($observed_symbols =~ /[^$_alphabet]/) {
-		my $msg = "Unexpected symbols detected in the input file!\n";
-		$msg = $msg . "expected alphabet: @_alphabet\n";
-		$msg = $msg . "found alphabet: @_observed_symbols\n";
-		die ($msg);
-	}
-
+	_check_symbols();
+	
 	# populate the analysis mask array: 0 = skip; 1 = analyze; (default = analyze all positions)
 	if ($mask) { @_mask = split(//,$mask) }
 	else { @_mask = (1) x $_W }
@@ -181,6 +177,33 @@ sub initialize {
 	return(1);
 }
 
+sub _check_symbols {
+	
+	# remove end symbol for printing
+	my  (@no_end_alpha, @no_end_obs);
+	for (@_observed_symbols) {unless ($_ eq $_end) {push(@no_end_obs, $_)}}
+	for (@_alphabet) {unless ($_ eq $_end) {push(@no_end_alpha, $_)}}	
+	
+	# warn if alphabet type is 'protein' but input looks like nucleic acid
+	if ($_alphabet_type eq 'protein' && @_observed_symbols <= length('ACGT$_gap$_null$_end')) {
+		my $msg = "\nWarning: You have specified the alphabet type as 'protein', \n";
+		$msg .=  "  but the input data may be dna or rna.\n"; 
+		$msg .= "An incorrect alphabet will cause erroneous results.\n";
+		$msg .= "Expected alphabet: @no_end_alpha\n";
+		$msg .= "Found alphabet: @no_end_obs\n\n";
+		warn($msg);
+	} 
+	
+	# die if unexpected symbols are detected
+	my $observed_symbols = join("", @_observed_symbols);
+	if ($observed_symbols =~ /[^$_alphabet]/) {
+		my $msg = "\nUnexpected symbols detected in the input file!\n";
+		$msg .= "Expected alphabet: @no_end_alpha\n";
+		$msg .= "Found alphabet: @no_end_obs\n\n";
+		die($msg);
+	}
+	return(1);
+}
 
 sub _standardize_the_read {
 
@@ -191,23 +214,23 @@ sub _standardize_the_read {
 	
 	$_W = length($seq_string); # width of the alignment (should be the same for all reads in the file)
 
-	# 1) trim leading nonresidue symbols with null symbol (because could be masked or padded with gaps)
-	my ($leader) = ($seq_string =~ m/^([$_gap_null]+)/);
+	# 1) trim leading nonresidue symbols with end symbol (because could be masked or padded with gaps)
+	my ($leader) = ($seq_string =~ m/^([$_gap$_null]+)/);
 	if(defined($leader)) {
 		my $len     = length($leader);
-		$seq_string = ($_null x $len) . substr($seq_string, $len); 
+		$seq_string = ($_end x $len) . substr($seq_string, $len); 
 	}
 
-	# 2) trim trailing nonresidue symbols with null symbol (because could be masked or padded with gaps)
-	my ($trailer) = ($seq_string =~ m/([$_gap_null]+)$/);
+	# 2) trim trailing nonresidue symbols with end symbol (because could be masked or padded with gaps)
+	my ($trailer) = ($seq_string =~ m/([$_gap$_null]+)$/);
 	if(defined($trailer)) {
 		my $len     = length($trailer);
-		$seq_string = substr($seq_string, 0, -$len) . ($_null x $len);
+		$seq_string = substr($seq_string, 0, -$len) . ($_end x $len);
 	}
 	
 	# Convert any lowercase alphabet symbols to uppercase
 	$seq_string = uc $seq_string;	
-	
+
 	return $seq_string;
 }
 
@@ -263,13 +286,15 @@ sub _calculate_diversity {
 		}	
 	}	
 		
-	# build array of alignment positions that are below the null and gap thresholds and are not masked
+	# build array of alignment positions that are below the null, gap, and end thresholds 
+	# and are not masked
 	# these are the positions in the alignment that will be used to calculate the diversity
 	@_valid_positions=();
 	
 	for(my $i=0; $i< $_W; $i++) {
-		if(  ($frequency[$i]{$_gap} <= $_gap_threshold * $_K) 
+		if(  ($frequency[$i]{$_gap}   <= $_gap_threshold * $_K) 
 			& ($frequency[$i]{$_null} <= $_null_threshold * $_K)
+			& ($frequency[$i]{$_end}  <= $_end_threshold * $_K)			
 			& $_mask[$i]) {
 			push @_valid_positions, $i;
 		}
@@ -282,7 +307,7 @@ sub _calculate_diversity {
 	
 	my ($sum_freqs, $gap_adjust, $matches, $_P) = (0) x 4;	
 	
-	# calculate matches and pairwise width
+	# sum the number of matches and pairs
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
 			$sum_freqs += $frequency[$i]{$alpha}*$_alpha_mask{$alpha};
@@ -414,18 +439,19 @@ sub _build_matrix {
     		#define conditions under which each matrix is not true (zero)
     		if ($div_type eq 'subs' && $matrix_type eq 'mismatch') {
     			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
-    				|| $col eq $_gap || $row eq $col;
+    				|| $col eq $_gap || $row eq $col || $row eq $_end || $col eq $_end;
     		}
     		elsif ($div_type eq 'subs' && $matrix_type eq 'coverage') {
     			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
-    				|| $col eq $_gap;
+    				|| $col eq $_gap || $row eq $_end || $col eq $_end;
     		}
     		elsif($div_type eq 'indels' && $matrix_type eq 'mismatch') {
-    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $col;
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $col
+    				|| $row eq $_end || $col eq $_end;
     		}
     		elsif($div_type eq 'indels' && $matrix_type eq 'coverage') {
-    			$false_conditions = $row eq $_null || $col eq $_null 
-    				||($row eq $_gap && $col eq $_gap);
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_end
+    				 || $col eq $_end || ($row eq $_gap && $col eq $_gap);
     		}
     		#print "$row $_gap\n";
     		my $value = 1;
@@ -465,6 +491,13 @@ sub null_threshold {
 	my $set_thresh = shift;
 	if ($set_thresh) {$_null_threshold = $set_thresh}
 	return($_null_threshold);
+}
+
+sub end_threshold {
+	my $self = shift;
+	my $set_thresh = shift;
+	if ($set_thresh) {$_end_threshold = $set_thresh}
+	return($_end_threshold);
 }
 
 sub diversity {

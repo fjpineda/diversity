@@ -42,29 +42,21 @@ my $_alphabet;			# alphabet string
 my @_observed_symbols;	# all symbols found in the input file
 my $_residues_and_gap;  # all symbols except null
 my @_mask;	            # binary mask defining which positions to analyze
+my %_alpha_mask;		# binary make defining which symbols to compare
 
 # ----------------------------------------
 # diversity and variance calculations
 # ----------------------------------------
 my $_diversity_type; # including indels or substitutions only
 my $_alphabet_type;  # 'dna', 'rna', or 'protein'
-my %_m_mat;	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
-my %_c_mat;	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
 
 my $_K;         # number of reads in the alignment file
 my $_W;         # width (number of columns) of the alignment file
-my $_M;     	# expected number of mismatches
-my $_Z;		    # expected pairwise width
+my $_M;     	# number of mismatches
+my $_Z;		    # pairwise width
 my $_D;     	# diversity
-my $_varD;		# variance of the diversity
-my $_sigmaD;	# standard deviation of D
 
 my @_freq;      # symbol frequencies in input file
-my @_p;		    # symbol probabilities $_p[$i]{$symbol}
-my @_m;
-my @_z;
-my @_var;   	# variances of the symbol probabilities
-my @_cov;   	# covariance of the symbol probabilities
 my @_valid_positions;  	# array positions in the alignment that can be included 
                         #   in the diversity calculation
 my $_gap_threshold;	    # if proportion of gap symbols exceeds _gap_threshold, 
@@ -94,105 +86,20 @@ sub new
 # initialize indicators
 # ----------------------------------
 sub _do_subs {
-	# warn("do_subs\n");		
-
-	my $_m_mat_ref = _build_matrix('subs','mismatch'); # mismatch matrix
-	%_m_mat = %$_m_mat_ref;
-	my $_c_mat_ref = _build_matrix('subs','coverage'); # coverage matrix
-	%_c_mat = %$_c_mat_ref;
-	
-# 	%_m_mat = (   # mismatch matrix
-# 		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>0, 'G'=>1, $_gap=>0, $_null=>0},
-# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>0, $_gap=>0, $_null=>0},
-# 		$_gap =>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0},
-# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-# 	);
-# 	
-# 	%_c_mat = (   # coverage matrix
-# 		'A'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		'T'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		$_gap =>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0},
-# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-# 	);
-
+	foreach my $res (@_residues) {
+		$_alpha_mask{$res} = 1;
+	}
+	$_alpha_mask{$_gap} = 0;
+	$_alpha_mask{$_null} = 0;
 }
 
 sub _do_indels {
-	# warn("do_na_indels\n");
-
-	my $_m_mat_ref = _build_matrix('indels','mismatch'); # mismatch matrix
-	%_m_mat = %$_m_mat_ref;
-	my $_c_mat_ref = _build_matrix('indels','coverage'); # coverage matrix
-	%_c_mat = %$_c_mat_ref;
-
-# 	%_m_mat = (   # mismatch matrix
-# 		'A'   =>{'A'=>0, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-# 		'T'   =>{'A'=>1, 'T'=>0, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>0, 'G'=>1, $_gap=>1, $_null=>0},
-# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>0, $_gap=>1, $_null=>0},
-# 		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-# 	);
-# 	
-# 	%_c_mat = (   # coverage matrix
-# 		'A'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-# 		'T'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-# 		'C'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-# 		'G'   =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>1, $_null=>0},
-# 		$_gap =>{'A'=>1, 'T'=>1, 'C'=>1, 'G'=>1, $_gap=>0, $_null=>0},
-# 		$_null=>{'A'=>0, 'T'=>0, 'C'=>0, 'G'=>0, $_gap=>0, $_null=>0}
-# 	);
-}
-
-sub _build_matrix {
-	my ($div_type, $matrix_type) = @_;
-	my %matrix;
-	my $false_conditions;
-	
-	foreach my $row (@_alphabet) {
-		my %cols;
-    	foreach my $col (@_alphabet) {
-    	
-    		#define conditions under which each matrix is not true (zero)
-    		if ($div_type eq 'subs' && $matrix_type eq 'mismatch') {
-    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
-    				|| $col eq $_gap || $row eq $col;
-    		}
-    		elsif ($div_type eq 'subs' && $matrix_type eq 'coverage') {
-    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
-    				|| $col eq $_gap;
-    		}
-    		elsif($div_type eq 'indels' && $matrix_type eq 'mismatch') {
-    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $col;
-    		}
-    		elsif($div_type eq 'indels' && $matrix_type eq 'coverage') {
-    			$false_conditions = $row eq $_null || $col eq $_null 
-    				||($row eq $_gap && $col eq $_gap);
-    		}
-    				
-    		my $value = 1;
-    		if ($false_conditions) { $value = 0 }
-    		$cols{$col} = $value;
-    	}
-    	$matrix{$row} = \%cols;
+	foreach my $res (@_residues) {
+		$_alpha_mask{$res} = 1;
 	}
-	
-	#foreach my $row (keys %matrix) {
-	#	print $row, "\t"; 
-	#	foreach my $col (keys %{$matrix{$row}}) { 
-	#		print $col, " ", $matrix{$row}->{$col}, "\t";
-	#	}
-	#	print "\n";
-	#}
-	#print "\n";
-
-	return (\%matrix);
+	$_alpha_mask{$_gap} = 1;
+	$_alpha_mask{$_null} = 0;
 }
-
 
 # ----------------------------------
 # initialize new diversity calculation
@@ -236,14 +143,6 @@ sub initialize {
 	$_M     = 0;
 	$_Z     = 0;
 	$_D     = 0;
-	$_varD  = 0;
-	$_sigmaD= 0;
-	
-	@_p   =();
-	@_m   =();
-	@_z   =();
-	@_var =();
-	@_cov =();
 	
 	# load the read buffer with standardized reads
 	# and calculate the width ($_W) and number of rows ($_K) in the alignment file
@@ -357,51 +256,20 @@ sub _calculate_diversity {
 	# fill-in with 0's the frequency of any alphabet symbols that did not appear
 	# in the input file
 	for(my $i=0; $i<$_W; $i++) {
-		foreach my $alpha (@_residues) {
+		foreach my $alpha (@_alphabet) {
 			if(!defined($frequency[$i]{$alpha})) {
 				$frequency[$i]{$alpha} = 0;
 			}
 		}	
 	}	
-	
-	for(my $i=0; $i<$_W; $i++) {
-		if(!defined($_freq[$i]{$_gap})) {
-				$frequency[$i]{$_gap}=0;	
-		}
-		if(!defined($_freq[$i]{$_null})) {
-				$frequency[$i]{$_null}=0;	
-		}
-	}
-	
-	# _debug_freq(\@frequency); 
-	
-	# calculate probabilities, variances and covariances
-	@_p=();
-	@_var=();
-	@_cov=();
-	for(my $i=0; $i<$_W; $i++) {
-		foreach my $beta (@_alphabet) {
-			if(!defined($frequency[$i]{$beta})){
-				warn("undefined element for i = $i and beta = $beta");
-			}
 		
-			my $p = $frequency[$i]{$beta}/$_K;
-			$_p[$i]{$beta} = $p;
-			$_var[$i]{$beta} = $p*(1-$p)/$_K;
-			foreach my $alpha (@_alphabet) {
-				if($alpha lt $beta) {
-					$_cov[$i]{$alpha}{$beta} = -$_p[$i]{$alpha}*$_p[$i]{$beta}/$_K;
-					$_cov[$i]{$beta}{$alpha} = $_cov[$i]{$alpha}{$beta};
-				}
-			}
-		}
-	}
-
 	# build array of alignment positions that are below the null and gap thresholds and are not masked
 	# these are the positions in the alignment that will be used to calculate the diversity
 	@_valid_positions=();
+	
 	for(my $i=0; $i< $_W; $i++) {
-		if(  ($_p[$i]{$_gap} <= $_gap_threshold) & ($_p[$i]{$_null} <= $_null_threshold)
+		if(  ($frequency[$i]{$_gap} <= $_gap_threshold * $_K) 
+			& ($frequency[$i]{$_null} <= $_null_threshold * $_K)
 			& $_mask[$i]) {
 			push @_valid_positions, $i;
 		}
@@ -412,87 +280,96 @@ sub _calculate_diversity {
 		return undef;
 	}
 	
-	# calc mismatches
-	@_m=();
+	my ($sum_freqs, $gap_adjust, $matches, $_Z) = (0) x 4;	
+	
+	# calculate matches and pairwise width
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_m[$i]{$alpha} = 0;
-			foreach my $beta (@_alphabet) {
-				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
+			$sum_freqs += $frequency[$i]{$alpha}*$_alpha_mask{$alpha};
+			$matches += _choose_2($frequency[$i]{$alpha}*$_alpha_mask{$alpha});
+			if($alpha eq $_gap) {
+				$gap_adjust += _choose_2($frequency[$i]{$alpha}*$_alpha_mask{$alpha});
 			}
 		}
+		$_Z += _choose_2($sum_freqs);
+		$sum_freqs = 0;
 	}
 	
-	$_M=0;
-	foreach my $i (@_valid_positions) {
-		foreach my $alpha (@_alphabet) {
-			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
-		}
-	}
+	# adjust for gap to gap comparisons
+	$_Z -= $gap_adjust;
+	$matches -= $gap_adjust;
 	
-	# calc expected pairwise coverage
-	@_z=();
-	foreach my $i (@_valid_positions) {
-		foreach my $alpha (@_alphabet) {
-			$_z[$i]{$alpha} = 0;
-			foreach my $beta (@_alphabet) {
-				if($alpha eq $beta) {
-					$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*($_p[$i]{$beta}-(1/$_K));
-				}
-				else { 
-					$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta}; 
-				}
-			}
-		}
-	}
-	
-	$_Z=0;
-	foreach my $i (@_valid_positions) {
-		foreach my $alpha (@_alphabet) {
-			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
-		}
-	}
+	# mismatches
+	$_M = $_Z - $matches;
 
-	# diversity
+	# average pairwise diversity
 	$_D = $_M/$_Z;
-
-	# ------------------
-	# calc variance of the Diversity via error propagation
-	# ------------------
 	
-	$_varD = 0;	
-	# for(my $i=0; $i<$_W; $i++) {
-	foreach my $i (@_valid_positions) {
-		my %Dp  = ();
-		my %Dpc = ();
-		foreach my $alpha (@_alphabet) {
-			$Dp{$alpha} = 2*($_Z*$_m[$i]{$alpha} - $_M*$_z[$i]{$alpha})/($_Z*$_Z);
-
-			my $sum = $Dp{$alpha}*$_var[$i]{$alpha};
-			foreach my $beta (@_alphabet) {
-				if($beta lt $alpha) {
-					$sum += 2*$Dp{$beta}*$_cov[$i]{$alpha}{$beta};
-				}
-			}
-			$_varD += $Dp{$alpha}*$sum;
-		}
-	}
-	$_sigmaD = sqrt($_varD);
-	
-
 	return 1;
 }
 
+sub fast_apd {
+	my $self=shift;
+	my %arguments = @_;
+	$_diversity_type = $arguments{'type'};
+
+	if(!defined($_diversity_type)) {
+		$_diversity_type = 'no_indels';
+		_do_subs();
+	}
+	elsif($_diversity_type eq 'with_indels') {
+		_do_indels();
+	}
+	elsif($_diversity_type eq 'no_indels') {
+		_do_subs();
+	}
+	else {
+		die("unknown diversity type: '$_diversity_type'");
+	}
+	
+	_calculate_diversity();
+	
+	return ($_D, $_Z);
+}
+
 # ----------------------------------
-# brute-force diversity (robust average pairwise difference)
+# choose function
 # ----------------------------------
 
+sub _choose_2 {
+	my $n = shift;
+	return($n * ($n - 1) / 2);
+}
+
+# ----------------------------------
+# brute-force diversity functions (robust average pairwise difference)
+# ----------------------------------
+
+my %_m_mat;	# mismatch matrix          $_m_mat{$symbol1}{$symbol2}
+my %_c_mat;	# pairwise coverage matrix $_c_mat{$symbol1}{$symbol2}
+
 sub apd {
+	my $self=shift;
+	my %arguments = @_;
+	$_diversity_type = $arguments{'type'};
+
+	if(!defined($_diversity_type)) {
+		$_diversity_type = 'no_indels';
+		_do_apd_subs();
+	}
+	elsif($_diversity_type eq 'with_indels') {
+		_do_apd_indels();
+	}
+	elsif($_diversity_type eq 'no_indels') {
+		_do_apd_subs();
+	}
+	else {
+		die("unknown diversity type: '$_diversity_type'");
+	}
 
 	my $m_sum = 0;
 	my $c_sum = 0;
 	for(my $i=0; $i<$_K; $i++) { 
-		# warn("$i\n");
 		my @seq_i = split //,$_read_buffer[$i];
 		for(my $j=$i+1; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
@@ -506,6 +383,71 @@ sub apd {
 	my $apd = $m_sum/$c_sum;
 	return($apd);
 }
+
+sub _do_apd_subs {
+	# warn("do_subs\n");		
+
+	my $_m_mat_ref = _build_matrix('subs','mismatch'); # mismatch matrix
+	%_m_mat = %$_m_mat_ref;
+	my $_c_mat_ref = _build_matrix('subs','coverage'); # coverage matrix
+	%_c_mat = %$_c_mat_ref;
+}
+
+sub _do_apd_indels {
+	# warn("do_na_indels\n");
+
+	my $_m_mat_ref = _build_matrix('indels','mismatch'); # mismatch matrix
+	%_m_mat = %$_m_mat_ref;
+	my $_c_mat_ref = _build_matrix('indels','coverage'); # coverage matrix
+	%_c_mat = %$_c_mat_ref;
+}
+
+sub _build_matrix {
+	my ($div_type, $matrix_type) = @_;
+	my %matrix;
+	my $false_conditions;
+	
+	foreach my $row (@_alphabet) {
+		my %cols;
+    	foreach my $col (@_alphabet) {
+    	
+    		#define conditions under which each matrix is not true (zero)
+    		if ($div_type eq 'subs' && $matrix_type eq 'mismatch') {
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
+    				|| $col eq $_gap || $row eq $col;
+    		}
+    		elsif ($div_type eq 'subs' && $matrix_type eq 'coverage') {
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $_gap 
+    				|| $col eq $_gap;
+    		}
+    		elsif($div_type eq 'indels' && $matrix_type eq 'mismatch') {
+    			$false_conditions = $row eq $_null || $col eq $_null || $row eq $col;
+    		}
+    		elsif($div_type eq 'indels' && $matrix_type eq 'coverage') {
+    			$false_conditions = $row eq $_null || $col eq $_null 
+    				||($row eq $_gap && $col eq $_gap);
+    		}
+    		#print "$row $_gap\n";
+    		my $value = 1;
+    		if ($false_conditions) { $value = 0 }
+    		$cols{$col} = $value;
+    	}
+    	$matrix{$row} = \%cols;
+	}
+	#print "$div_type $matrix_type\n";
+	#foreach my $row (keys %matrix) {
+	#	print $row, "\t"; 
+	#	foreach my $col (keys %{$matrix{$row}}) { 
+	#		print $col, " ", $matrix{$row}->{$col}, "\t";
+	#	}
+	#	print "\n";
+	#}
+	#print "\n";
+
+	return (\%matrix);
+}
+
+
 
 # ----------------------------------
 # setters and getters
@@ -525,43 +467,9 @@ sub null_threshold {
 	return($_null_threshold);
 }
 
-sub epd {
-	my $self=shift;
-	my %arguments = @_;
-	$_diversity_type = $arguments{'type'};
-
-	if(!defined($_diversity_type)) {
-		$_diversity_type = 'no_indels';
-		_do_subs();
-	}
-	elsif($_diversity_type eq 'with_indels') {
-		_do_indels;
-	}
-	elsif($_diversity_type eq 'no_indels') {
-		_do_subs();
-	}
-	else {
-		die("unknown diversity type: '$_diversity_type'");
-	}
-	
-	_calculate_diversity();
-	
-	return ($_D, $_sigmaD, $_Z);
-}
-
 sub diversity {
 	my $self=shift;
 	return $_D;
-}
-
-sub variance {
-	my $self=shift;
-	return $_varD;
-}
-
-sub sigma {
-	my $self=shift;
-	return $_sigmaD;
 }
 
 sub Z {

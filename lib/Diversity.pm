@@ -53,7 +53,7 @@ my $_alphabet_type;  # 'dna', 'rna', or 'protein'
 my $_K;         # number of reads in the alignment file
 my $_W;         # width (number of columns) of the alignment file
 my $_M;     	# number of mismatches
-my $_Z;		    # pairwise width
+my $_P;		    # number of pairs
 my $_D;     	# diversity
 
 my @_freq;      # symbol frequencies in input file
@@ -141,7 +141,7 @@ sub initialize {
 	$_K     = 0;
 	$_W     = 0;
 	$_M     = 0;
-	$_Z     = 0;
+	$_P     = 0;
 	$_D     = 0;
 	
 	# load the read buffer with standardized reads
@@ -280,7 +280,7 @@ sub _calculate_diversity {
 		return undef;
 	}
 	
-	my ($sum_freqs, $gap_adjust, $matches, $_Z) = (0) x 4;	
+	my ($sum_freqs, $gap_adjust, $matches, $_P) = (0) x 4;	
 	
 	# calculate matches and pairwise width
 	foreach my $i (@_valid_positions) {
@@ -291,19 +291,19 @@ sub _calculate_diversity {
 				$gap_adjust += _choose_2($frequency[$i]{$alpha}*$_alpha_mask{$alpha});
 			}
 		}
-		$_Z += _choose_2($sum_freqs);
+		$_P += _choose_2($sum_freqs);
 		$sum_freqs = 0;
 	}
 	
 	# adjust for gap to gap comparisons
-	$_Z -= $gap_adjust;
+	$_P -= $gap_adjust;
 	$matches -= $gap_adjust;
 	
 	# mismatches
-	$_M = $_Z - $matches;
+	$_M = $_P - $matches;
 
 	# average pairwise diversity
-	$_D = $_M/$_Z;
+	$_D = $_M/$_P;
 	
 	return 1;
 }
@@ -329,7 +329,7 @@ sub fast_apd {
 	
 	_calculate_diversity();
 	
-	return ($_D, $_Z);
+	return ($_D);
 }
 
 # ----------------------------------
@@ -472,9 +472,9 @@ sub diversity {
 	return $_D;
 }
 
-sub Z {
+sub P {
 	my $self=shift;
-	return $_Z;
+	return $_P;
 }
 
 sub n_reads {

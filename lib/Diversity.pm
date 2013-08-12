@@ -436,7 +436,12 @@ sub _calculate_diversity {
 		foreach my $alpha (@_alphabet) {
 			$_z[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta};
+				if($alpha eq $beta) {
+					$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*($_p[$i]{$beta}-(1/$_K));
+				}
+				else { 
+					$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta}; 
+				}
 			}
 		}
 	}
@@ -489,7 +494,7 @@ sub apd {
 	for(my $i=0; $i<$_K; $i++) { 
 		# warn("$i\n");
 		my @seq_i = split //,$_read_buffer[$i];
-		for(my $j=$i; $j<$_K; $j++) { 
+		for(my $j=$i+1; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
 			for(my $w=0; $w< $_W; $w++) {
 				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};

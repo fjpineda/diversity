@@ -140,7 +140,6 @@ sub initialize {
 									-format=>  'fasta',
 									-alphabet=>$_alphabet_type
 						);
-	get_reads($infilename)
 
 	# reset variables
 	$_K     = 0;
@@ -392,21 +391,32 @@ sub apd {
 		die("unknown diversity type: '$_diversity_type'");
 	}
 
-	my $m_sum = 0;
-	my $c_sum = 0;
+	my ($m_sum, $c_sum) = (0) x 2;
+	my ($pos, $curr_m_sum, $ct, $sum, $sum_squares) = (0) x 5;
 	for(my $i=0; $i<$_K; $i++) { 
 		my @seq_i = split //,$_read_buffer[$i];
 		for(my $j=$i+1; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
 			for(my $w=0; $w< $_W; $w++) {
-				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};
+				my $m = $_m_mat{$seq_i[$w]}{$seq_j[$w]};
+				$m_sum += $m;
+				$curr_m_sum += $m;
 				$c_sum += $_c_mat{$seq_i[$w]}{$seq_j[$w]};
+				$pos++ if $c_sum;
 			}
+			if ($pos) {
+				$ct++;
+				my $avg_m = $curr_m_sum / $pos; 
+				$sum += $avg_m;
+				$sum_squares += ($avg_m * $avg_m);
+			}
+			$pos = $curr_m_sum = 0;
 		}
 	}
-	
+	#print "ct $ct sum $sum sum_sq $sum_squares\n";
+	my $variance = ($sum_squares - ($sum**2 / $ct)) / ($ct - 1);
 	my $apd = $m_sum/$c_sum;
-	return($apd);
+	return($apd, $variance);
 }
 
 sub _do_apd_subs {

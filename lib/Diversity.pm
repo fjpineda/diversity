@@ -471,14 +471,18 @@ sub apd {
 # setters and getters
 # ----------------------------------
 
-sub set_gap_threshold {
+sub gap_threshold {
 	my $self = shift;
-	$_gap_threshold = shift;
+	my $set_thresh = shift;
+	if ($set_thresh) {$_gap_threshold = $set_thresh}
+	return($_gap_threshold);
 }
 
-sub set_null_threshold {
+sub null_threshold {
 	my $self = shift;
-	$_null_threshold = shift;
+	my $set_thresh = shift;
+	if ($set_thresh) {$_null_threshold = $set_thresh}
+	return($_null_threshold);
 }
 
 sub epd {

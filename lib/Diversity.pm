@@ -39,7 +39,7 @@ my @_residues;		# residues array
 my $_residues;		# residues string
 my @_alphabet;		# alphabet
 my @_observed_symbols;	# all symbols found in the input file
-my $_residues_and_gap;   # all symbols except null
+my $_residues_and_gap;  # all symbols except null
 
 # ----------------------------------------
 # diversity and variance calculations
@@ -60,8 +60,6 @@ my $_sigmaD;	# standard deviation of D
 
 my @_freq;        # symbol frequencies in input file
 my @_p;		# symbol probabilities $_p[$i]{$symbol}
-my @_m;
-my @_z;
 my @_var;   	# variances of the symbol probabilities
 my @_cov;   	# covariance of the symbol probabilities
 my @_valid_positions;  	# array positions in the alginment that can be included in
@@ -218,8 +216,6 @@ sub initialize {
 	$_sigmaD= 0;
 	
 	@_p   =();
-	@_m   =();
-	@_z   =();
 	@_var =();
 	@_cov =();
 	
@@ -376,13 +372,15 @@ sub _calculate_diversity {
 		}
 	}
 	
+
+
 	# calc mismatches
-	@_m=();
+	my @Sm   =();
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_m[$i]{$alpha} = 0;
+			$Sm[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
+				$Sm[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
 			}
 		}
 	}
@@ -390,17 +388,18 @@ sub _calculate_diversity {
 	$_M=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
+			$_M += ($Sm[$i]{$alpha}-$_m_mat{$alpha}{$alpha}/$_K)*$_p[$i]{$alpha}
 		}
 	}
+	$_M *= $_K/($_K-1);
 	
 	# calc expected pairwise coverage
-	@_z=();
+	my @Sc=();
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_z[$i]{$alpha} = 0;
+			$Sc[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_z[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta};
+				$Sc[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta};
 			}
 		}
 	}
@@ -408,9 +407,10 @@ sub _calculate_diversity {
 	$_Z=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
+			$_Z += ($Sc[$i]{$alpha}-$_c_mat{$alpha}{$alpha}/$_K)*$_p[$i]{$alpha}
 		}
 	}
+	$_Z *= $_K/($_K-1);
 
 	# diversity
 	$_D = $_M/$_Z;
@@ -420,20 +420,21 @@ sub _calculate_diversity {
 	# ------------------
 	
 	$_varD = 0;	
-	# for(my $i=0; $i<$_W; $i++) {
 	foreach my $i (@_valid_positions) {
-		my %Dp  = ();
-		my %Dpc = ();
+		my %Dp = ();
 		foreach my $alpha (@_alphabet) {
-			$Dp{$alpha} = 2*($_Z*$_m[$i]{$alpha} - $_M*$_z[$i]{$alpha})/($_Z*$_Z);
-
+			my $Mp = ($_K/($_K-1) ) *(2*$Sm[$i]{$alpha}-$_m_mat{$alpha}{$alpha}/$_K);
+			my $Zp = ($_K/($_K-1) ) *(2*$Sc[$i]{$alpha}-$_c_mat{$alpha}{$alpha}/$_K);
+			$Dp{$alpha} = ($_Z*$Mp - $_M*$Zp)/($_Z*$_Z);
+		}
+		foreach my $alpha (@_alphabet) {
 			my $sum = $Dp{$alpha}*$_var[$i]{$alpha};
 			foreach my $beta (@_alphabet) {
 				if($beta lt $alpha) {
 					$sum += 2*$Dp{$beta}*$_cov[$i]{$alpha}{$beta};
 				}
 			}
-			$_varD += $Dp{$alpha}*$sum;
+			$_varD += $Dp{$alpha} *$sum;
 		}
 	}
 	$_sigmaD = sqrt($_varD);
@@ -453,7 +454,7 @@ sub apd {
 	for(my $i=0; $i<$_K; $i++) { 
 		# warn("$i\n");
 		my @seq_i = split //,$_read_buffer[$i];
-		for(my $j=$i; $j<$_K; $j++) { 
+		for(my $j=$i+1; $j<$_K; $j++) { 
 			my @seq_j = split //,$_read_buffer[$j];
 			for(my $w=0; $w< $_W; $w++) {
 				$m_sum += $_m_mat{$seq_i[$w]}{$seq_j[$w]};

@@ -5,7 +5,7 @@ use warnings;
 
 use File::Basename;
 use Data::Dumper;
-use Bio::SeqIO;
+use Bio::AlignIO;
 # use Benchmark;
 
 # ----------------------------------------
@@ -174,7 +174,7 @@ my @_read_buffer; # holds preprocessed read strings
 sub initialize {
 	(my $self, my $infilename, $_alphabet_type, my $mask) = @_;
 
-	my $seqio_obj;
+	my $alignio_obj;
 
 	if($_alphabet_type eq 'dna') {
 		$_null     = 'N';
@@ -198,10 +198,11 @@ sub initialize {
 	$_gap_null = $_gap.$_null;
 	$_residues = join '',@_residues;
 
-	$seqio_obj = Bio::SeqIO->new(	-file =>   $infilename,
+	$alignio_obj = Bio::AlignIO->new(	-file =>   $infilename,
 									-format=>  'fasta',
 									-alphabet=>$_alphabet_type
 						);
+	my $aln_obj = $alignio_obj->next_aln();
 
 	# reset variables
 	$_K     = 0;
@@ -220,8 +221,8 @@ sub initialize {
 	# load the read buffer with standardized reads
 	# and calculate the width ($_W) and number of rows ($_K) in the alignment file
 	@_read_buffer = ();	
-	while(my $seqio_obj = $seqio_obj->next_seq) {
-		$_read_buffer[$_K] =  _standardize_the_read($seqio_obj);
+	foreach my $seq_obj ($aln_obj->each_seq) {
+		$_read_buffer[$_K] =  _standardize_the_read($seq_obj);
 		$_K++;
 	}
 
@@ -249,9 +250,7 @@ sub initialize {
 sub _standardize_the_read {
 
 	my $seq_object = shift;
-	
-	my ($read_id) = ($seq_object->display_id =~/_(\w+)_/);
-	my $seq_string = $seq_object->seq;
+	my $seq_string = $seq_object->seq();
 	
 	$_W = length($seq_string); # width of the alignment (should be the same for all reads in the file)
 

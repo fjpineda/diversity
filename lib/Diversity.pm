@@ -59,15 +59,13 @@ my $_K;         # number of reads in the alignment file
 my $_W;         # width (number of columns) of the alignment file
 my $_M;     	# expected number of mismatches
 my $_Z;		    # expected pairwise width
-my $_P;		    # number of pairs
+my $_P;		    # number of pairs of symbols
 my $_D;     	# diversity
 my $_varD;		# variance of the diversity
 my $_sigmaD;	# standard deviation of D
 
 my @_freq;      # symbol frequencies in input file
 my @_p;		    # symbol probabilities $_p[$i]{$symbol}
-my @_m;
-my @_z;
 my @_var;   	# variances of the symbol probabilities
 my @_cov;   	# covariance of the symbol probabilities
 my @_valid_positions;  	# array positions in the alignment that can be included 
@@ -126,7 +124,6 @@ sub _do_indels {
 	
 	foreach my $res (@_residues) {$_alpha_mask{$res} = 1}
 	@_alpha_mask{$_gap, $_null, $_end} = (1,0,0);
-		print $_alpha_mask{$_null}, "\n";
 }
 
 sub _build_matrix {
@@ -228,8 +225,6 @@ sub initialize {
 	$_sigmaD= 0;
 	
 	@_p   =();
-	@_m   =();
-	@_z   =();
 	@_var =();
 	@_cov =();
 	
@@ -457,14 +452,14 @@ sub _epd {
 			}
 		}
 	}
-	
+
 	# calc mismatches
-	@_m=();
+	my @Sm   =();
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_m[$i]{$alpha} = 0;
+			$Sm[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-				$_m[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
+				$Sm[$i]{$alpha}  += $_m_mat{$alpha}{$beta}*$_p[$i]{$beta};
 			}
 		}
 	}
@@ -472,19 +467,18 @@ sub _epd {
 	$_M=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_M += $_m[$i]{$alpha}*$_p[$i]{$alpha}
+			$_M += ($Sm[$i]{$alpha}-$_m_mat{$alpha}{$alpha}/$_K)*$_p[$i]{$alpha}
 		}
 	}
 	$_M *= $_K/($_K-1);
 	
 	# calc expected pairwise coverage
-	@_z=();
+	my @Sc=();
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_z[$i]{$alpha} = 0;
+			$Sc[$i]{$alpha} = 0;
 			foreach my $beta (@_alphabet) {
-					$_z[$i]{$alpha} += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta}
-						- (1/$_K)*$_d_mat{$alpha}{$beta}; 
+				$Sc[$i]{$alpha}  += $_c_mat{$alpha}{$beta}*$_p[$i]{$beta};
 			}
 		}
 	}
@@ -492,7 +486,7 @@ sub _epd {
 	$_Z=0;
 	foreach my $i (@_valid_positions) {
 		foreach my $alpha (@_alphabet) {
-			$_Z += $_z[$i]{$alpha}*$_p[$i]{$alpha}
+			$_Z += ($Sc[$i]{$alpha}-$_c_mat{$alpha}{$alpha}/$_K)*$_p[$i]{$alpha}
 		}
 	}
 	$_Z *= $_K/($_K-1);
@@ -505,20 +499,21 @@ sub _epd {
 	# ------------------
 	
 	$_varD = 0;	
-	# for(my $i=0; $i<$_W; $i++) {
 	foreach my $i (@_valid_positions) {
-		my %Dp  = ();
-		my %Dpc = ();
+		my %Dp = ();
 		foreach my $alpha (@_alphabet) {
-			$Dp{$alpha} = 2*($_Z*$_m[$i]{$alpha} - $_M*$_z[$i]{$alpha})/($_Z*$_Z);
-
+			my $Mp = ($_K/($_K-1) ) *(2*$Sm[$i]{$alpha}-$_m_mat{$alpha}{$alpha}/$_K);
+			my $Zp = ($_K/($_K-1) ) *(2*$Sc[$i]{$alpha}-$_c_mat{$alpha}{$alpha}/$_K);
+			$Dp{$alpha} = ($_Z*$Mp - $_M*$Zp)/($_Z*$_Z);
+		}
+		foreach my $alpha (@_alphabet) {
 			my $sum = $Dp{$alpha}*$_var[$i]{$alpha};
 			foreach my $beta (@_alphabet) {
 				if($beta lt $alpha) {
 					$sum += 2*$Dp{$beta}*$_cov[$i]{$alpha}{$beta};
 				}
 			}
-			$_varD += $Dp{$alpha}*$sum;
+			$_varD += $Dp{$alpha} *$sum;
 		}
 	}
 	$_sigmaD = sqrt($_varD);

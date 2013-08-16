@@ -198,10 +198,10 @@ sub initialize {
 	$_gap_null = $_gap.$_null;
 	$_residues = join '',@_residues;
 
-	$alignio_obj = Bio::AlignIO->new(	-file =>   $infilename,
-									-format=>  'fasta',
-									-alphabet=>$_alphabet_type
-						);
+	$alignio_obj = Bio::AlignIO->new( -file=>    $infilename,
+									  -format=>  'fasta',
+									  -alphabet=>$_alphabet_type
+	);
 	my $aln_obj = $alignio_obj->next_aln();
 
 	# reset variables
@@ -231,6 +231,7 @@ sub initialize {
 	# detect which of the possible gap symbols is present
 	foreach my $symbol (@_observed_symbols) {
 		if($symbol =~ /[$_gap]/) { $_gap = $symbol }
+		else{ $_gap = "-" }
 	}
 	
 	$_gap_null = $_gap.$_null;
@@ -307,7 +308,7 @@ sub _qc_symbols {
 	for (@_alphabet) {unless ($_ eq $_end) {push(@no_end_alpha, $_)}}	
 
 	# warn if alphabet type is 'protein' but input looks like nucleic acid
-	if ($_alphabet_type eq 'protein' && @_observed_symbols <= length('ACGT$_gap$_null$_end')) {
+	if ($_alphabet_type eq 'protein' && @_observed_symbols <= length("ACGT$_gap$_null$_end")) {
 		my $msg = "\nWarning: You have specified the alphabet type as 'protein', \n";
 		$msg .=  "  but the input data may be dna or rna.\n"; 
 		$msg .= "An incorrect alphabet will cause erroneous results.\n";
